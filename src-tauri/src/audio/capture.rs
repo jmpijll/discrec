@@ -283,8 +283,11 @@ fn capture_cpal(
     peak_level_bits: &Arc<AtomicU32>,
     stop_rx: &mpsc::Receiver<StreamMsg>,
 ) -> Result<Option<String>> {
+    use super::encoder::AudioEncoder;
+    use anyhow::Context;
     use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
     use cpal::{SampleFormat, StreamConfig};
+    use parking_lot::Mutex;
 
     let host = cpal::default_host();
     let device = get_loopback_device(&host)?;
@@ -387,6 +390,7 @@ fn capture_cpal(
 
 #[cfg(target_os = "linux")]
 fn get_loopback_device(host: &cpal::Host) -> Result<cpal::Device> {
+    use anyhow::Context;
     use cpal::traits::{DeviceTrait, HostTrait};
 
     // Log available input devices for debugging
@@ -417,6 +421,7 @@ fn get_loopback_device(host: &cpal::Host) -> Result<cpal::Device> {
 
 #[cfg(target_os = "macos")]
 fn get_loopback_device(host: &cpal::Host) -> Result<cpal::Device> {
+    use anyhow::Context;
     use cpal::traits::{DeviceTrait, HostTrait};
 
     // Log available input devices for debugging
