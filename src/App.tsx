@@ -5,7 +5,6 @@ import { RecordButton } from "./components/RecordButton";
 import { StatusBar } from "./components/StatusBar";
 import { AudioMeter } from "./components/AudioMeter";
 import { CompletedView } from "./components/CompletedView";
-import { DiscordPanel } from "./components/DiscordPanel";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { Disc3, AlertCircle, Settings } from "lucide-react";
 
@@ -62,89 +61,72 @@ function App() {
           format={recorder.format}
           onFormatChange={recorder.setFormat}
           onClose={() => setShowSettings(false)}
+          discordConnected={discord.state !== "disconnected"}
+          discordConnecting={discord.connecting}
+          guilds={discord.guilds}
+          channels={discord.channels}
+          selectedGuild={discord.selectedGuild}
+          selectedChannel={discord.selectedChannel}
+          onDiscordConnect={discord.connect}
+          onDiscordDisconnect={discord.disconnect}
+          onSelectGuild={discord.selectGuild}
+          onSelectChannel={discord.setSelectedChannel}
         />
       )}
 
-      {/* Main content — landscape row */}
-      <div className="flex items-center gap-8 px-8">
-        {/* Left: branding + discord panel / meter */}
-        <div className="flex flex-col items-center gap-4 min-w-[240px]">
-          <div className="flex items-center gap-2">
+      {/* Main content — clean centered view */}
+      {isDone ? (
+        <CompletedView
+          filePath={
+            isDiscordMode
+              ? discord.savedPaths[0] ?? null
+              : recorder.filePath
+          }
+          duration={duration}
+          onReset={handleReset}
+        />
+      ) : (
+        <div className="flex flex-col items-center gap-2">
+          {/* Branding */}
+          <div className="flex items-center gap-2 mb-2">
             <Disc3
-              className={`w-6 h-6 text-accent ${isRecording ? "animate-spin" : ""}`}
+              className={`w-5 h-5 text-accent ${isRecording ? "animate-spin" : ""}`}
               style={{ animationDuration: "3s" }}
             />
-            <h1 className="text-lg font-bold tracking-tight text-text-primary">
+            <h1 className="text-base font-bold tracking-tight text-text-primary">
               DiscRec
             </h1>
           </div>
 
-          {!isDone && (
-            <>
-              {isDiscordMode ? (
-                <DiscordPanel
-                  connected={discord.state !== "disconnected"}
-                  connecting={discord.connecting}
-                  guilds={discord.guilds}
-                  channels={discord.channels}
-                  selectedGuild={discord.selectedGuild}
-                  selectedChannel={discord.selectedChannel}
-                  onConnect={discord.connect}
-                  onDisconnect={discord.disconnect}
-                  onSelectGuild={discord.selectGuild}
-                  onSelectChannel={discord.setSelectedChannel}
-                />
-              ) : (
-                <DiscordPanel
-                  connected={false}
-                  connecting={discord.connecting}
-                  guilds={[]}
-                  channels={[]}
-                  selectedGuild={null}
-                  selectedChannel={null}
-                  onConnect={discord.connect}
-                  onDisconnect={discord.disconnect}
-                  onSelectGuild={() => {}}
-                  onSelectChannel={() => {}}
-                />
-              )}
-            </>
-          )}
-        </div>
+          {/* Audio meter */}
+          <AudioMeter level={peakLevel} isActive={isRecording} />
 
-        {/* Right: meter + record button + status */}
-        {isDone ? (
-          <CompletedView
-            filePath={
-              isDiscordMode
-                ? discord.savedPaths[0] ?? null
-                : recorder.filePath
-            }
-            duration={duration}
-            onReset={handleReset}
+          {/* Extra spacing so pulsation glow doesn't overlap meter */}
+          <div className="h-4" />
+
+          {/* Record button */}
+          <RecordButton
+            isRecording={isRecording}
+            onClick={isRecording ? handleStop : handleRecord}
+            disabled={!isRecording && !canRecord}
           />
-        ) : (
-          <div className="flex flex-col items-center gap-3">
-            <AudioMeter level={peakLevel} isActive={isRecording} />
-            <RecordButton
-              isRecording={isRecording}
-              onClick={isRecording ? handleStop : handleRecord}
-              disabled={!isRecording && !canRecord}
-            />
-            <div className="h-8 flex items-center">
-              {isRecording ? (
-                <StatusBar isRecording={true} duration={duration} />
-              ) : (
-                <p className="text-xs text-text-muted">
-                  {canRecord
-                    ? "Press to record"
-                    : "Select a voice channel"}
-                </p>
-              )}
-            </div>
+
+          {/* Status text */}
+          <div className="h-8 flex items-center">
+            {isRecording ? (
+              <StatusBar isRecording={true} duration={duration} />
+            ) : (
+              <p className="text-xs text-text-muted">
+                {isDiscordMode
+                  ? canRecord
+                    ? "Press to record Discord"
+                    : "Select a voice channel in settings"
+                  : "Press to record Discord audio"}
+              </p>
+            )}
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Error Display */}
       {error && (
