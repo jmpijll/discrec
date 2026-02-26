@@ -46,10 +46,7 @@ pub fn stop_recording(
 
     // Send desktop notification on successful save
     if let Some(ref path) = result {
-        let filename = path
-            .rsplit(['/', '\\'])
-            .next()
-            .unwrap_or(path);
+        let filename = path.rsplit(['/', '\\']).next().unwrap_or(path);
         let _ = app
             .notification()
             .builder()
