@@ -285,7 +285,7 @@ fn capture_cpal(
 ) -> Result<Option<String>> {
     use super::encoder::AudioEncoder;
     use anyhow::Context;
-    use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+    use cpal::traits::{DeviceTrait, StreamTrait};
     use cpal::{SampleFormat, StreamConfig};
     use parking_lot::Mutex;
 
