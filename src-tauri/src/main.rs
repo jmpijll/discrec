@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-  discrec_lib::run();
+    discrec_lib::run();
 }

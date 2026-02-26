@@ -19,7 +19,9 @@ pub fn run() {
             }
             Ok(())
         })
-        .manage(RecorderState(Mutex::new(audio::capture::AudioCapture::new())))
+        .manage(RecorderState(Mutex::new(
+            audio::capture::AudioCapture::new(),
+        )))
         .invoke_handler(tauri::generate_handler![
             commands::start_recording,
             commands::stop_recording,

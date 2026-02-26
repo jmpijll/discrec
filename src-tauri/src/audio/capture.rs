@@ -116,9 +116,9 @@ impl AudioCapture {
                         if !rec_flag.load(Ordering::Relaxed) {
                             return;
                         }
-                        let peak = data
-                            .iter()
-                            .fold(0.0f32, |max, &s| max.max((s as f32 / i16::MAX as f32).abs()));
+                        let peak = data.iter().fold(0.0f32, |max, &s| {
+                            max.max((s as f32 / i16::MAX as f32).abs())
+                        });
                         peak_bits.store(peak.to_bits(), Ordering::Relaxed);
 
                         if let Some(ref mut w) = *writer_ref.lock() {
@@ -173,7 +173,8 @@ impl AudioCapture {
         }
 
         self.is_recording.store(false, Ordering::Relaxed);
-        self.peak_level_bits.store(0f32.to_bits(), Ordering::Relaxed);
+        self.peak_level_bits
+            .store(0f32.to_bits(), Ordering::Relaxed);
 
         // Signal the recording thread to stop
         if let Some(tx) = self.stop_tx.take() {

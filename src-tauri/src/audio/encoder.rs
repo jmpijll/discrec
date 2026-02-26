@@ -11,12 +11,10 @@ impl WavWriter {
     pub fn new(path: &str, spec: hound::WavSpec) -> Result<Self> {
         // Ensure parent directory exists
         if let Some(parent) = PathBuf::from(path).parent() {
-            std::fs::create_dir_all(parent)
-                .context("Failed to create recording directory")?;
+            std::fs::create_dir_all(parent).context("Failed to create recording directory")?;
         }
 
-        let writer = hound::WavWriter::create(path, spec)
-            .context("Failed to create WAV file")?;
+        let writer = hound::WavWriter::create(path, spec).context("Failed to create WAV file")?;
 
         Ok(Self {
             writer,
