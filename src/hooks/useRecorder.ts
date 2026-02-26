@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import type { AudioFormat } from "../components/FormatSelector";
 
 export type RecordingState = "idle" | "recording" | "done";
 
@@ -14,6 +15,7 @@ export function useRecorder() {
   const [duration, setDuration] = useState(0);
   const [peakLevel, setPeakLevel] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [format, setFormat] = useState<AudioFormat>("wav");
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -32,7 +34,7 @@ export function useRecorder() {
   const startRecording = useCallback(async () => {
     try {
       setError(null);
-      const path = await invoke<string>("start_recording");
+      const path = await invoke<string>("start_recording", { format });
       setFilePath(path);
       setState("recording");
       setDuration(0);
@@ -52,7 +54,7 @@ export function useRecorder() {
     } catch (e) {
       setError(String(e));
     }
-  }, []);
+  }, [format]);
 
   const stopRecording = useCallback(async () => {
     try {
@@ -85,6 +87,8 @@ export function useRecorder() {
     duration,
     peakLevel,
     error,
+    format,
+    setFormat,
     startRecording,
     stopRecording,
     reset,

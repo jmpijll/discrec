@@ -10,16 +10,17 @@
 - [x] GitHub Actions CI (lint + clippy + test)
 - [x] GitHub Actions release workflow (multi-OS builds)
 - [x] README, CONTRIBUTING, issue templates
-- [ ] First successful cross-platform build
+- [x] First successful cross-platform build
 
 ## v0.2.0 — Polish
 
-- [ ] Live audio level meter visualization
-- [ ] Linux audio capture (PulseAudio/PipeWire monitor)
-- [ ] macOS audio capture (ScreenCaptureKit / BlackHole detection)
-- [ ] FLAC encoding (smaller lossless files)
-- [ ] System tray with record/stop
-- [ ] Notification on recording complete
+- [x] Live audio level meter visualization (smooth decay, peak hold, glow)
+- [x] Linux audio capture (PulseAudio/PipeWire monitor detection)
+- [x] macOS audio capture (BlackHole / virtual device detection)
+- [x] FLAC encoding (smaller lossless files via `flacenc`)
+- [x] System tray with record/stop/quit
+- [x] Notification on recording complete
+- [x] Format selector (WAV / FLAC)
 
 ## v1.0.0 — Discord Integration
 

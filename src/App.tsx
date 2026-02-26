@@ -3,6 +3,7 @@ import { RecordButton } from "./components/RecordButton";
 import { StatusBar } from "./components/StatusBar";
 import { AudioMeter } from "./components/AudioMeter";
 import { CompletedView } from "./components/CompletedView";
+import { FormatSelector } from "./components/FormatSelector";
 import { Disc3, AlertCircle } from "lucide-react";
 
 function App() {
@@ -12,6 +13,8 @@ function App() {
     duration,
     peakLevel,
     error,
+    format,
+    setFormat,
     startRecording,
     stopRecording,
     reset,
@@ -49,14 +52,23 @@ function App() {
               onClick={state === "recording" ? stopRecording : startRecording}
             />
 
-            {/* Status */}
-            <div className="h-10 flex items-center">
-              {state === "recording" ? (
-                <StatusBar isRecording={true} duration={duration} />
-              ) : (
-                <p className="text-sm text-text-muted">
-                  Press to record Discord audio
-                </p>
+            {/* Status + Format */}
+            <div className="flex flex-col items-center gap-3">
+              <div className="h-10 flex items-center">
+                {state === "recording" ? (
+                  <StatusBar isRecording={true} duration={duration} />
+                ) : (
+                  <p className="text-sm text-text-muted">
+                    Press to record Discord audio
+                  </p>
+                )}
+              </div>
+
+              {state === "idle" && (
+                <FormatSelector
+                  value={format}
+                  onChange={setFormat}
+                />
               )}
             </div>
           </>
@@ -73,7 +85,7 @@ function App() {
 
       {/* Footer */}
       <p className="text-xs text-text-muted/50 pb-2">
-        v0.1.0
+        v0.2.0
       </p>
     </div>
   );

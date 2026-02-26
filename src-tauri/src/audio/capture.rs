@@ -7,7 +7,7 @@ use std::sync::mpsc;
 use std::sync::Arc;
 use std::thread;
 
-use super::encoder::WavWriter;
+use super::encoder::{create_encoder, AudioEncoder, AudioFormat};
 
 enum StreamMsg {
     Stop,
@@ -43,7 +43,7 @@ impl AudioCapture {
         f32::from_bits(self.peak_level_bits.load(Ordering::Relaxed))
     }
 
-    pub fn start(&mut self, output_path: &str) -> Result<()> {
+    pub fn start(&mut self, output_path: &str, format: AudioFormat) -> Result<()> {
         if self.is_recording() {
             anyhow::bail!("Already recording");
         }
@@ -68,17 +68,11 @@ impl AudioCapture {
                 config.channels()
             );
 
-            let spec = hound::WavSpec {
-                channels: config.channels(),
-                sample_rate: config.sample_rate().0,
-                bits_per_sample: 32,
-                sample_format: hound::SampleFormat::Float,
-            };
+            let encoder = create_encoder(&path, config.channels(), config.sample_rate().0, format)?;
+            let encoder: Arc<Mutex<Option<Box<dyn AudioEncoder>>>> =
+                Arc::new(Mutex::new(Some(encoder)));
 
-            let writer = WavWriter::new(&path, spec)?;
-            let writer = Arc::new(Mutex::new(Some(writer)));
-
-            let writer_ref = Arc::clone(&writer);
+            let writer_ref = Arc::clone(&encoder);
             let rec_flag = Arc::clone(&is_recording);
             let peak_bits = Arc::clone(&peak_level_bits);
             let sample_format = config.sample_format();
@@ -147,8 +141,8 @@ impl AudioCapture {
             // Drop stream first to stop callbacks
             drop(stream);
 
-            // Finalize the WAV file
-            let result = if let Some(w) = writer.lock().take() {
+            // Finalize the encoded file
+            let result = if let Some(w) = encoder.lock().take() {
                 let p = w.path().to_string();
                 w.finalize()?;
                 log::info!("Recording saved: {}", p);
@@ -201,31 +195,64 @@ fn get_loopback_device(host: &cpal::Host) -> Result<cpal::Device> {
 
 #[cfg(target_os = "linux")]
 fn get_loopback_device(host: &cpal::Host) -> Result<cpal::Device> {
+    // Log available input devices for debugging
+    if let Ok(devices) = host.input_devices() {
+        let names: Vec<String> = devices.filter_map(|d| d.name().ok()).collect();
+        log::info!("Available input devices: {:?}", names);
+    }
+
+    // PulseAudio/PipeWire monitor sources contain "monitor" in the name
+    let monitor_keywords = ["monitor", "Monitor"];
     if let Some(device) = host.input_devices()?.find(|d| {
         d.name()
-            .map(|n| n.to_lowercase().contains("monitor"))
+            .map(|n| monitor_keywords.iter().any(|kw| n.contains(kw)))
             .unwrap_or(false)
     }) {
+        log::info!(
+            "Found monitor device: {}",
+            device.name().unwrap_or_default()
+        );
         return Ok(device);
     }
+
+    // Fallback to default input (e.g. microphone)
+    log::warn!("No monitor device found, falling back to default input");
     host.default_input_device()
-        .context("No input device available")
+        .context("No input device available. Ensure PulseAudio or PipeWire is running.")
 }
 
 #[cfg(target_os = "macos")]
 fn get_loopback_device(host: &cpal::Host) -> Result<cpal::Device> {
+    // Log available input devices for debugging
+    if let Ok(devices) = host.input_devices() {
+        let names: Vec<String> = devices.filter_map(|d| d.name().ok()).collect();
+        log::info!("Available input devices: {:?}", names);
+    }
+
+    // Look for known virtual audio devices used for system audio capture
+    let virtual_keywords = [
+        "blackhole",
+        "loopback",
+        "soundflower",
+        "virtual",
+        "screencapture",
+    ];
     if let Some(device) = host.input_devices()?.find(|d| {
         d.name()
             .map(|n| {
                 let lower = n.to_lowercase();
-                lower.contains("blackhole")
-                    || lower.contains("loopback")
-                    || lower.contains("soundflower")
+                virtual_keywords.iter().any(|kw| lower.contains(kw))
             })
             .unwrap_or(false)
     }) {
+        log::info!(
+            "Found virtual audio device: {}",
+            device.name().unwrap_or_default()
+        );
         return Ok(device);
     }
+
+    log::warn!("No virtual audio device found. Install BlackHole (https://existential.audio/blackhole/) for system audio capture.");
     host.default_input_device()
         .context("No input device available. Install BlackHole for system audio capture on macOS.")
 }
