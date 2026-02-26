@@ -18,14 +18,23 @@ export function AudioMeter({ level, isActive }: AudioMeterProps) {
   const peakTimerRef = useRef(0);
   const rafRef = useRef(0);
 
+  // Reset when recording stops
   useEffect(() => {
     if (!isActive) {
       smoothRef.current = 0;
       peakRef.current = 0;
-      setSmoothLevel(0);
-      setPeakBar(0);
-      return;
+      // Use rAF to batch the reset outside the synchronous effect body
+      const id = requestAnimationFrame(() => {
+        setSmoothLevel(0);
+        setPeakBar(0);
+      });
+      return () => cancelAnimationFrame(id);
     }
+  }, [isActive]);
+
+  // Animation loop while active
+  useEffect(() => {
+    if (!isActive) return;
 
     let running = true;
     const tick = () => {
