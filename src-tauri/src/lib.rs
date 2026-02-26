@@ -1,7 +1,8 @@
 mod audio;
 mod commands;
+mod discord;
 
-use commands::RecorderState;
+use commands::{DiscordState, RecorderState};
 use parking_lot::Mutex;
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
@@ -90,11 +91,25 @@ pub fn run() {
         .manage(RecorderState(Mutex::new(
             audio::capture::AudioCapture::new(),
         )))
+        .manage(DiscordState(tokio::sync::Mutex::new(
+            discord::bot::DiscordBot::new(),
+        )))
         .invoke_handler(tauri::generate_handler![
             commands::start_recording,
             commands::stop_recording,
             commands::get_status,
             commands::get_recordings_dir,
+            commands::open_folder,
+            commands::discord_connect,
+            commands::discord_disconnect,
+            commands::discord_list_guilds,
+            commands::discord_list_channels,
+            commands::discord_start_recording,
+            commands::discord_stop_recording,
+            commands::discord_get_status,
+            commands::save_bot_token,
+            commands::load_bot_token,
+            commands::delete_bot_token,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "DiscRec",
-  "version": "0.2.0",
+  "version": "1.0.0",
   "identifier": "com.discrec.app",
   "build": {
     "frontendDist": "../dist",
@@ -13,8 +13,8 @@
     "windows": [
       {
         "title": "DiscRec",
-        "width": 520,
-        "height": 600,
+        "width": 680,
+        "height": 400,
         "resizable": false,
         "fullscreen": false,
         "center": true,

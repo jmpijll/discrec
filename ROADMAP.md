@@ -24,10 +24,13 @@
 
 ## v1.0.0 — Discord Integration
 
-- [ ] Discord Bot connection (serenity + songbird)
-- [ ] Per-speaker audio recording (separate tracks)
-- [ ] Channel selector in UI
-- [ ] Secure token storage (OS keychain)
+- [x] Landscape layout + optimized window size
+- [x] Settings menu (gear icon) with format selector + version
+- [x] Fix open-in-folder button
+- [x] Discord Bot connection (serenity + songbird)
+- [x] Per-speaker audio recording (separate tracks)
+- [x] Channel selector in UI
+- [x] Secure token storage (OS keychain)
 
 ## v1.1.0 — Extras
 

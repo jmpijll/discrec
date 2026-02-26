@@ -1,5 +1,5 @@
 import { CheckCircle, FolderOpen, RotateCcw } from "lucide-react";
-import { open } from "@tauri-apps/plugin-shell";
+import { invoke } from "@tauri-apps/api/core";
 
 interface CompletedViewProps {
   filePath: string | null;
@@ -19,16 +19,10 @@ export function CompletedView({ filePath, duration, onReset }: CompletedViewProp
 
   const openFolder = async () => {
     if (!filePath) return;
-    const dir = filePath.substring(0, filePath.lastIndexOf(/[/\\]/.test(filePath) ? filePath.includes("\\") ? "\\" : "/" : "/"));
     try {
-      await open(dir);
-    } catch {
-      // Fallback: try opening the file directly
-      try {
-        await open(filePath);
-      } catch {
-        // ignore
-      }
+      await invoke("open_folder", { path: filePath });
+    } catch (e) {
+      console.error("Failed to open folder:", e);
     }
   };
 

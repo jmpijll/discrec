@@ -4,19 +4,23 @@ import { cn } from "../lib/utils";
 interface RecordButtonProps {
   isRecording: boolean;
   onClick: () => void;
+  disabled?: boolean;
 }
 
-export function RecordButton({ isRecording, onClick }: RecordButtonProps) {
+export function RecordButton({ isRecording, onClick, disabled }: RecordButtonProps) {
   return (
     <button
       onClick={onClick}
+      disabled={disabled}
       className={cn(
-        "relative w-32 h-32 rounded-full flex items-center justify-center",
+        "relative w-28 h-28 rounded-full flex items-center justify-center",
         "transition-all duration-300 cursor-pointer",
         "focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary",
-        isRecording
-          ? "bg-record animate-pulse-record hover:bg-record/80"
-          : "bg-accent hover:bg-accent-hover hover:scale-105 active:scale-95"
+        disabled
+          ? "bg-bg-elevated opacity-40 cursor-not-allowed"
+          : isRecording
+            ? "bg-record animate-pulse-record hover:bg-record/80"
+            : "bg-accent hover:bg-accent-hover hover:scale-105 active:scale-95"
       )}
     >
       {/* Outer glow ring */}
