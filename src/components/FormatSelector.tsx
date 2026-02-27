@@ -1,6 +1,6 @@
 import { cn } from "../lib/utils";
 
-export type AudioFormat = "wav" | "flac";
+export type AudioFormat = "wav" | "flac" | "mp3";
 
 interface FormatSelectorProps {
   value: AudioFormat;
@@ -11,6 +11,7 @@ interface FormatSelectorProps {
 const formats: { value: AudioFormat; label: string; desc: string }[] = [
   { value: "wav", label: "WAV", desc: "Lossless, large" },
   { value: "flac", label: "FLAC", desc: "Lossless, compact" },
+  { value: "mp3", label: "MP3", desc: "Lossy, smallest" },
 ];
 
 export function FormatSelector({ value, onChange, disabled }: FormatSelectorProps) {

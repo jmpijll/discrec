@@ -52,17 +52,25 @@
 - [x] Improved format selector with inline descriptions
 - [x] Consistent styling across all components
 
-## v1.1.0 — Quality of Life (next)
+## v1.1.0 — Quality of Life
 
-- [ ] Auto-record on voice channel join/leave
-- [ ] Recording history view (list past recordings with playback)
-- [ ] Export to MP3 / OGG (lossy compressed output)
-- [ ] Tauri updater integration (auto-update on new release)
-- [ ] Dark/light theme toggle
-- [ ] Keyboard shortcuts (Ctrl+R to record, Ctrl+S to stop)
+- [x] MP3 encoding via `mp3lame-encoder` crate (192 kbps, best quality)
+- [x] Keyboard shortcuts: Ctrl+R to record, Ctrl+S / Escape to stop
+- [x] Recording history view (browse, open folder, delete — inside settings)
+- [x] Auto-record on voice channel join/leave (polls member count every 5s)
+- [x] Dark/light theme toggle (persisted to localStorage)
+- [x] Keyboard shortcuts reference card in settings
+
+### Lessons learned
+- `mp3lame-encoder` builds LAME from source via `mp3lame-sys` — works cross-platform without extra system deps (just needs a C compiler + cmake)
+- OGG Vorbis (`vorbis_encoder`) requires system-installed `libvorbis-dev` — deferred to avoid CI complexity
+- Polling-based auto-record (5s interval via `discord_get_channel_members`) is simpler and more reliable than event-based approach for v1
+- CSS custom properties + `data-theme` attribute is the cleanest way to implement theme switching with TailwindCSS v4
 
 ## v1.2.0 — Advanced Features
 
+- [ ] OGG Vorbis export (requires bundling libvorbis or finding pure-Rust encoder)
+- [ ] Tauri updater integration (auto-update on new release)
 - [ ] Audio source selector (choose which app to capture, not just Discord)
 - [ ] Linux per-app capture (PipeWire filter nodes)
 - [ ] Real-time audio waveform / spectrogram view

@@ -4,6 +4,7 @@ use crate::discord::bot::{DiscordBot, GuildInfo, VoiceChannelInfo};
 use chrono::Local;
 use parking_lot::Mutex;
 use serde::Serialize;
+use std::path::Path;
 use tauri::{AppHandle, State};
 use tauri_plugin_notification::NotificationExt;
 use tokio::sync::Mutex as TokioMutex;
@@ -122,6 +123,99 @@ pub fn open_folder(path: String) -> Result<(), String> {
     Ok(())
 }
 
+// --- Recording history commands ---
+
+#[derive(Serialize, Clone)]
+pub struct RecordingInfo {
+    pub path: String,
+    pub filename: String,
+    pub size: u64,
+    pub modified: String,
+    pub format: String,
+}
+
+#[tauri::command]
+pub fn list_recordings() -> Result<Vec<RecordingInfo>, String> {
+    let dir = dirs::audio_dir()
+        .or_else(dirs::home_dir)
+        .unwrap_or_else(|| std::path::PathBuf::from("."))
+        .join("DiscRec");
+
+    if !dir.exists() {
+        return Ok(Vec::new());
+    }
+
+    let mut recordings = Vec::new();
+    let entries = std::fs::read_dir(&dir).map_err(|e| e.to_string())?;
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !path.is_file() {
+            continue;
+        }
+
+        let ext = path
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("")
+            .to_lowercase();
+
+        if !matches!(ext.as_str(), "wav" | "flac" | "mp3") {
+            continue;
+        }
+
+        let metadata = std::fs::metadata(&path).map_err(|e| e.to_string())?;
+        let modified = metadata
+            .modified()
+            .ok()
+            .map(|t| {
+                let dt: chrono::DateTime<chrono::Local> = t.into();
+                dt.format("%Y-%m-%d %H:%M:%S").to_string()
+            })
+            .unwrap_or_default();
+
+        recordings.push(RecordingInfo {
+            path: path.to_string_lossy().to_string(),
+            filename: path
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string(),
+            size: metadata.len(),
+            modified,
+            format: ext,
+        });
+    }
+
+    // Sort newest first
+    recordings.sort_by(|a, b| b.modified.cmp(&a.modified));
+    Ok(recordings)
+}
+
+#[tauri::command]
+pub fn delete_recording(path: String) -> Result<(), String> {
+    let file_path = Path::new(&path);
+
+    // Security: ensure the file is inside the DiscRec directory
+    let recordings_dir = dirs::audio_dir()
+        .or_else(dirs::home_dir)
+        .unwrap_or_else(|| std::path::PathBuf::from("."))
+        .join("DiscRec");
+
+    let canonical_file = file_path
+        .canonicalize()
+        .map_err(|e| format!("Invalid path: {}", e))?;
+    let canonical_dir = recordings_dir
+        .canonicalize()
+        .map_err(|e| format!("Recordings dir not found: {}", e))?;
+
+    if !canonical_file.starts_with(&canonical_dir) {
+        return Err("Cannot delete files outside the recordings directory".to_string());
+    }
+
+    std::fs::remove_file(file_path).map_err(|e| format!("Failed to delete: {}", e))
+}
+
 // --- Discord bot commands ---
 
 fn recordings_dir() -> String {
@@ -209,6 +303,20 @@ pub async fn discord_get_status(state: State<'_, DiscordState>) -> Result<Discor
         recording: bot.is_recording(),
         peak_level: bot.peak_level(),
     })
+}
+
+#[tauri::command]
+pub async fn discord_get_channel_members(
+    state: State<'_, DiscordState>,
+    guild_id: String,
+    channel_id: String,
+) -> Result<usize, String> {
+    let gid: u64 = guild_id.parse().map_err(|_| "Invalid guild ID")?;
+    let cid: u64 = channel_id.parse().map_err(|_| "Invalid channel ID")?;
+    let bot = state.0.lock().await;
+    bot.get_channel_member_count(gid, cid)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]

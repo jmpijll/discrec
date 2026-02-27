@@ -224,6 +224,28 @@ impl DiscordBot {
         Ok(())
     }
 
+    pub async fn get_channel_member_count(&self, guild_id: u64, channel_id: u64) -> Result<usize> {
+        let ctx_guard = self.ctx_store.read().await;
+        let ctx = ctx_guard.as_ref().context("Not connected to Discord")?;
+
+        let gid = GuildId::new(guild_id);
+        let cid = ChannelId::new(channel_id);
+
+        let count = ctx
+            .cache
+            .guild(gid)
+            .map(|guild| {
+                guild
+                    .voice_states
+                    .values()
+                    .filter(|vs| vs.channel_id == Some(cid))
+                    .count()
+            })
+            .unwrap_or(0);
+
+        Ok(count)
+    }
+
     pub async fn stop_recording(&self) -> Result<Vec<String>> {
         if !self.is_recording() {
             return Ok(Vec::new());

@@ -7,6 +7,7 @@ use std::path::PathBuf;
 pub enum AudioFormat {
     Wav,
     Flac,
+    Mp3,
 }
 
 impl AudioFormat {
@@ -14,6 +15,7 @@ impl AudioFormat {
         match self {
             AudioFormat::Wav => "wav",
             AudioFormat::Flac => "flac",
+            AudioFormat::Mp3 => "mp3",
         }
     }
 }
@@ -45,6 +47,10 @@ pub fn create_encoder(
         }
         AudioFormat::Flac => {
             let writer = FlacWriter::new(path, channels, sample_rate)?;
+            Ok(Box::new(writer))
+        }
+        AudioFormat::Mp3 => {
+            let writer = Mp3Writer::new(path, channels, sample_rate)?;
             Ok(Box::new(writer))
         }
     }
@@ -159,6 +165,95 @@ impl AudioEncoder for FlacWriter {
             "FLAC encoded: {} samples -> {} bytes",
             self.samples.len(),
             sink.as_slice().len()
+        );
+        Ok(())
+    }
+}
+
+// --- MP3 encoder (buffers samples, encodes on finalize via LAME) ---
+
+struct Mp3Writer {
+    path: String,
+    channels: u16,
+    sample_rate: u32,
+    samples: Vec<f32>,
+}
+
+impl Mp3Writer {
+    fn new(path: &str, channels: u16, sample_rate: u32) -> Result<Self> {
+        Ok(Self {
+            path: path.to_string(),
+            channels,
+            sample_rate,
+            samples: Vec::new(),
+        })
+    }
+}
+
+impl AudioEncoder for Mp3Writer {
+    fn write_sample(&mut self, sample: f32) -> Result<()> {
+        self.samples.push(sample);
+        Ok(())
+    }
+
+    fn path(&self) -> &str {
+        &self.path
+    }
+
+    fn finalize(self: Box<Self>) -> Result<()> {
+        use mp3lame_encoder::{Builder, FlushNoGap, InterleavedPcm};
+
+        let mut builder =
+            Builder::new().ok_or_else(|| anyhow::anyhow!("Failed to create MP3 encoder"))?;
+
+        builder
+            .set_sample_rate(self.sample_rate)
+            .map_err(|e| anyhow::anyhow!("MP3: failed to set sample rate: {:?}", e))?;
+        builder
+            .set_num_channels(self.channels as u8)
+            .map_err(|e| anyhow::anyhow!("MP3: failed to set channels: {:?}", e))?;
+        builder
+            .set_brate(mp3lame_encoder::Bitrate::Kbps192)
+            .map_err(|e| anyhow::anyhow!("MP3: failed to set bitrate: {:?}", e))?;
+        builder
+            .set_quality(mp3lame_encoder::Quality::Best)
+            .map_err(|e| anyhow::anyhow!("MP3: failed to set quality: {:?}", e))?;
+
+        let mut encoder = builder
+            .build()
+            .map_err(|e| anyhow::anyhow!("MP3: failed to build encoder: {:?}", e))?;
+
+        // Convert f32 samples to i16 for LAME
+        let int_samples: Vec<i16> = self
+            .samples
+            .iter()
+            .map(|&s| (s.clamp(-1.0, 1.0) * i16::MAX as f32) as i16)
+            .collect();
+
+        let input = InterleavedPcm(&int_samples);
+        let mut mp3_buffer =
+            Vec::with_capacity(mp3lame_encoder::max_required_buffer_size(int_samples.len()));
+
+        let encoded_size = encoder
+            .encode(input, mp3_buffer.spare_capacity_mut())
+            .map_err(|e| anyhow::anyhow!("MP3 encode failed: {:?}", e))?;
+        unsafe {
+            mp3_buffer.set_len(mp3_buffer.len().wrapping_add(encoded_size));
+        }
+
+        let flush_size = encoder
+            .flush::<FlushNoGap>(mp3_buffer.spare_capacity_mut())
+            .map_err(|e| anyhow::anyhow!("MP3 flush failed: {:?}", e))?;
+        unsafe {
+            mp3_buffer.set_len(mp3_buffer.len().wrapping_add(flush_size));
+        }
+
+        std::fs::write(&self.path, &mp3_buffer).context("Failed to write MP3 file")?;
+
+        log::info!(
+            "MP3 encoded: {} samples -> {} bytes",
+            self.samples.len(),
+            mp3_buffer.len()
         );
         Ok(())
     }

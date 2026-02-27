@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { useDiscord } from "./hooks/useDiscord";
 import { useRecorder } from "./hooks/useRecorder";
+import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import { RecordButton } from "./components/RecordButton";
 import { StatusBar } from "./components/StatusBar";
 import { AudioMeter } from "./components/AudioMeter";
@@ -8,10 +10,17 @@ import { CompletedView } from "./components/CompletedView";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { Disc3, AlertCircle, Settings } from "lucide-react";
 
+type Theme = "dark" | "light";
+
 function App() {
   const discord = useDiscord();
   const recorder = useRecorder();
   const [showSettings, setShowSettings] = useState(false);
+  const [autoRecord, setAutoRecord] = useState(false);
+  const [theme, setTheme] = useState<Theme>(() => {
+    return (localStorage.getItem("discrec-theme") as Theme) || "dark";
+  });
+  const prevMemberCount = useRef<number | null>(null);
 
   // Determine which mode is active
   const isDiscordMode = discord.state !== "disconnected";
@@ -53,6 +62,65 @@ function App() {
     ? discord.selectedChannel !== null
     : true;
 
+  useKeyboardShortcuts({
+    onRecord: handleRecord,
+    onStop: handleStop,
+    isRecording,
+    canRecord,
+    disabled: showSettings || isDone,
+  });
+
+  // Theme management
+  const handleThemeChange = useCallback((newTheme: Theme) => {
+    setTheme(newTheme);
+    localStorage.setItem("discrec-theme", newTheme);
+    document.documentElement.setAttribute("data-theme", newTheme);
+  }, []);
+
+  // Apply theme on mount
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+  }, [theme]);
+
+  // Auto-record: poll channel member count when enabled
+  useEffect(() => {
+    if (!autoRecord || !isDiscordMode || !discord.selectedGuild || !discord.selectedChannel) {
+      prevMemberCount.current = null;
+      return;
+    }
+    if (isDone) return;
+
+    const poll = async () => {
+      try {
+        const count = await invoke<number>("discord_get_channel_members", {
+          guildId: discord.selectedGuild,
+          channelId: discord.selectedChannel,
+        });
+
+        const prev = prevMemberCount.current;
+        prevMemberCount.current = count;
+
+        // Skip first poll (establishing baseline)
+        if (prev === null) return;
+
+        // Someone joined and we're not recording → start
+        if (count > 0 && prev === 0 && !isRecording) {
+          discord.startRecording(recorder.format);
+        }
+        // Everyone left and we're recording → stop
+        if (count === 0 && prev > 0 && isRecording) {
+          discord.stopRecording();
+        }
+      } catch {
+        // ignore polling errors
+      }
+    };
+
+    const interval = setInterval(poll, 5000);
+    poll(); // initial poll
+    return () => clearInterval(interval);
+  }, [autoRecord, isDiscordMode, discord, isRecording, isDone, recorder.format]);
+
   return (
     <div className="relative flex items-center justify-center min-h-screen bg-bg-primary">
       {/* Settings overlay */}
@@ -71,6 +139,10 @@ function App() {
           onDiscordDisconnect={discord.disconnect}
           onSelectGuild={discord.selectGuild}
           onSelectChannel={discord.setSelectedChannel}
+          autoRecord={autoRecord}
+          onAutoRecordChange={setAutoRecord}
+          theme={theme}
+          onThemeChange={handleThemeChange}
         />
       )}
 
