@@ -1,6 +1,7 @@
 use crate::audio::capture::AudioCapture;
 use crate::audio::encoder::AudioFormat;
 use crate::discord::bot::{DiscordBot, GuildInfo, VoiceChannelInfo};
+use crate::settings::SettingsState;
 use chrono::Local;
 use parking_lot::Mutex;
 use serde::Serialize;
@@ -28,22 +29,23 @@ pub struct DiscordStatus {
 #[tauri::command]
 pub fn start_recording(
     state: State<'_, RecorderState>,
+    settings: State<'_, SettingsState>,
     format: Option<AudioFormat>,
 ) -> Result<String, String> {
     let mut recorder = state.0.lock();
     let fmt = format.unwrap_or(AudioFormat::Wav);
 
-    let recordings_dir = dirs::audio_dir()
-        .or_else(dirs::home_dir)
-        .unwrap_or_else(|| std::path::PathBuf::from("."))
-        .join("DiscRec");
+    let recordings_dir = crate::settings::recordings_dir(&settings);
+    let silence_trim = settings.0.lock().silence_trim;
 
     let timestamp = Local::now().format("%Y-%m-%d_%H%M%S");
     let filename = format!("discord-{}.{}", timestamp, fmt.extension());
     let output_path = recordings_dir.join(&filename);
     let path_str = output_path.to_string_lossy().to_string();
 
-    recorder.start(&path_str, fmt).map_err(|e| e.to_string())?;
+    recorder
+        .start(&path_str, fmt, silence_trim)
+        .map_err(|e| e.to_string())?;
     Ok(path_str)
 }
 
@@ -79,12 +81,10 @@ pub fn get_status(state: State<'_, RecorderState>) -> RecordingStatus {
 }
 
 #[tauri::command]
-pub fn get_recordings_dir() -> String {
-    let dir = dirs::audio_dir()
-        .or_else(dirs::home_dir)
-        .unwrap_or_else(|| std::path::PathBuf::from("."))
-        .join("DiscRec");
-    dir.to_string_lossy().to_string()
+pub fn get_recordings_dir(settings: State<'_, SettingsState>) -> String {
+    crate::settings::recordings_dir(&settings)
+        .to_string_lossy()
+        .to_string()
 }
 
 #[tauri::command]
@@ -135,11 +135,8 @@ pub struct RecordingInfo {
 }
 
 #[tauri::command]
-pub fn list_recordings() -> Result<Vec<RecordingInfo>, String> {
-    let dir = dirs::audio_dir()
-        .or_else(dirs::home_dir)
-        .unwrap_or_else(|| std::path::PathBuf::from("."))
-        .join("DiscRec");
+pub fn list_recordings(settings: State<'_, SettingsState>) -> Result<Vec<RecordingInfo>, String> {
+    let dir = crate::settings::recordings_dir(&settings);
 
     if !dir.exists() {
         return Ok(Vec::new());
@@ -193,14 +190,11 @@ pub fn list_recordings() -> Result<Vec<RecordingInfo>, String> {
 }
 
 #[tauri::command]
-pub fn delete_recording(path: String) -> Result<(), String> {
+pub fn delete_recording(settings: State<'_, SettingsState>, path: String) -> Result<(), String> {
     let file_path = Path::new(&path);
 
-    // Security: ensure the file is inside the DiscRec directory
-    let recordings_dir = dirs::audio_dir()
-        .or_else(dirs::home_dir)
-        .unwrap_or_else(|| std::path::PathBuf::from("."))
-        .join("DiscRec");
+    // Security: ensure the file is inside the recordings directory
+    let recordings_dir = crate::settings::recordings_dir(&settings);
 
     let canonical_file = file_path
         .canonicalize()
@@ -217,15 +211,6 @@ pub fn delete_recording(path: String) -> Result<(), String> {
 }
 
 // --- Discord bot commands ---
-
-fn recordings_dir() -> String {
-    dirs::audio_dir()
-        .or_else(dirs::home_dir)
-        .unwrap_or_else(|| std::path::PathBuf::from("."))
-        .join("DiscRec")
-        .to_string_lossy()
-        .to_string()
-}
 
 #[tauri::command]
 pub async fn discord_connect(state: State<'_, DiscordState>, token: String) -> Result<(), String> {
@@ -259,6 +244,7 @@ pub async fn discord_list_channels(
 #[tauri::command]
 pub async fn discord_start_recording(
     state: State<'_, DiscordState>,
+    settings: State<'_, SettingsState>,
     guild_id: String,
     channel_id: String,
     format: Option<AudioFormat>,
@@ -266,7 +252,9 @@ pub async fn discord_start_recording(
     let gid: u64 = guild_id.parse().map_err(|_| "Invalid guild ID")?;
     let cid: u64 = channel_id.parse().map_err(|_| "Invalid channel ID")?;
     let fmt = format.unwrap_or(AudioFormat::Wav);
-    let output_dir = recordings_dir();
+    let output_dir = crate::settings::recordings_dir(&settings)
+        .to_string_lossy()
+        .to_string();
 
     let bot = state.0.lock().await;
     bot.start_recording(gid, cid, &output_dir, fmt)
@@ -332,4 +320,70 @@ pub fn load_bot_token() -> Result<Option<String>, String> {
 #[tauri::command]
 pub fn delete_bot_token() -> Result<(), String> {
     crate::discord::bot::delete_token().map_err(|e| e.to_string())
+}
+
+// --- Silence trim commands ---
+
+#[tauri::command]
+pub fn get_silence_trim(settings: State<'_, SettingsState>) -> bool {
+    settings.0.lock().silence_trim
+}
+
+#[tauri::command]
+pub fn set_silence_trim(settings: State<'_, SettingsState>, enabled: bool) -> bool {
+    {
+        let mut s = settings.0.lock();
+        s.silence_trim = enabled;
+    }
+    settings.save();
+    enabled
+}
+
+// --- Output directory commands ---
+
+#[derive(Serialize, Clone)]
+pub struct OutputDirInfo {
+    pub path: String,
+    pub is_custom: bool,
+}
+
+#[tauri::command]
+pub fn get_output_dir(settings: State<'_, SettingsState>) -> OutputDirInfo {
+    let s = settings.0.lock();
+    let is_custom = s.output_dir.as_ref().is_some_and(|d| !d.is_empty());
+    drop(s);
+    OutputDirInfo {
+        path: crate::settings::recordings_dir(&settings)
+            .to_string_lossy()
+            .to_string(),
+        is_custom,
+    }
+}
+
+#[tauri::command]
+pub fn set_output_dir(
+    settings: State<'_, SettingsState>,
+    path: Option<String>,
+) -> Result<OutputDirInfo, String> {
+    // Validate the path if provided
+    if let Some(ref p) = path {
+        if !p.is_empty() {
+            let dir = std::path::Path::new(p);
+            if !dir.exists() {
+                std::fs::create_dir_all(dir)
+                    .map_err(|e| format!("Cannot create directory: {}", e))?;
+            }
+            if !dir.is_dir() {
+                return Err("Path is not a directory".to_string());
+            }
+        }
+    }
+
+    {
+        let mut s = settings.0.lock();
+        s.output_dir = path;
+    }
+    settings.save();
+
+    Ok(get_output_dir(settings))
 }

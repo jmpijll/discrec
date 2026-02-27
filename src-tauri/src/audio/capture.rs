@@ -40,7 +40,12 @@ impl AudioCapture {
         f32::from_bits(self.peak_level_bits.load(Ordering::Relaxed))
     }
 
-    pub fn start(&mut self, output_path: &str, format: AudioFormat) -> Result<()> {
+    pub fn start(
+        &mut self,
+        output_path: &str,
+        format: AudioFormat,
+        silence_trim: bool,
+    ) -> Result<()> {
         if self.is_recording() {
             anyhow::bail!("Already recording");
         }
@@ -53,14 +58,28 @@ impl AudioCapture {
         #[cfg(target_os = "windows")]
         let handle = {
             thread::spawn(move || -> Result<Option<String>> {
-                capture_windows(&path, format, &is_recording, &peak_level_bits, &stop_rx)
+                capture_windows(
+                    &path,
+                    format,
+                    silence_trim,
+                    &is_recording,
+                    &peak_level_bits,
+                    &stop_rx,
+                )
             })
         };
 
         #[cfg(not(target_os = "windows"))]
         let handle = {
             thread::spawn(move || -> Result<Option<String>> {
-                capture_cpal(&path, format, &is_recording, &peak_level_bits, &stop_rx)
+                capture_cpal(
+                    &path,
+                    format,
+                    silence_trim,
+                    &is_recording,
+                    &peak_level_bits,
+                    &stop_rx,
+                )
             })
         };
 
@@ -141,6 +160,7 @@ fn find_discord_pid() -> Result<u32> {
 fn capture_windows(
     path: &str,
     format: AudioFormat,
+    silence_trim: bool,
     is_recording: &Arc<AtomicBool>,
     peak_level_bits: &Arc<AtomicU32>,
     stop_rx: &mpsc::Receiver<StreamMsg>,
@@ -203,6 +223,8 @@ fn capture_windows(
 
     let mut sample_queue: VecDeque<u8> = VecDeque::new();
     let bytes_per_frame = blockalign as usize;
+    let mut gate_open = !silence_trim; // if trimming disabled, gate is always open
+    const SILENCE_THRESHOLD: f32 = 0.005;
 
     loop {
         // Check for stop signal (non-blocking)
@@ -250,6 +272,16 @@ fn capture_windows(
                 peak_level_bits.store(abs_sample.to_bits(), Ordering::Relaxed);
             }
 
+            // Silence gate: skip leading silence when trimming is enabled
+            if !gate_open {
+                if abs_sample > SILENCE_THRESHOLD {
+                    gate_open = true;
+                    log::info!("Silence gate opened — audio detected");
+                } else {
+                    continue;
+                }
+            }
+
             if let Err(e) = encoder.write_sample(sample) {
                 log::error!("Failed to write sample: {}", e);
                 break;
@@ -279,6 +311,7 @@ fn capture_windows(
 fn capture_cpal(
     path: &str,
     format: AudioFormat,
+    silence_trim: bool,
     is_recording: &Arc<AtomicBool>,
     peak_level_bits: &Arc<AtomicU32>,
     stop_rx: &mpsc::Receiver<StreamMsg>,
@@ -311,10 +344,15 @@ fn capture_cpal(
     let peak_bits = Arc::clone(peak_level_bits);
     let sample_format = config.sample_format();
     let stream_config: StreamConfig = config.into();
+    let gate_open = Arc::new(AtomicBool::new(!silence_trim));
+    const SILENCE_THRESHOLD: f32 = 0.005;
 
     let err_fn = |err: cpal::StreamError| {
         log::error!("Audio stream error: {}", err);
     };
+
+    let gate_f32 = Arc::clone(&gate_open);
+    let gate_i16 = Arc::clone(&gate_open);
 
     let stream = match sample_format {
         SampleFormat::F32 => device.build_input_stream(
@@ -328,6 +366,13 @@ fn capture_cpal(
 
                 if let Some(ref mut w) = *writer_ref.lock() {
                     for &sample in data {
+                        if !gate_f32.load(Ordering::Relaxed) {
+                            if sample.abs() > SILENCE_THRESHOLD {
+                                gate_f32.store(true, Ordering::Relaxed);
+                            } else {
+                                continue;
+                            }
+                        }
                         if let Err(e) = w.write_sample(sample) {
                             log::error!("Failed to write sample: {}", e);
                             return;
@@ -352,6 +397,13 @@ fn capture_cpal(
                 if let Some(ref mut w) = *writer_ref.lock() {
                     for &sample in data {
                         let float_sample = sample as f32 / i16::MAX as f32;
+                        if !gate_i16.load(Ordering::Relaxed) {
+                            if float_sample.abs() > SILENCE_THRESHOLD {
+                                gate_i16.store(true, Ordering::Relaxed);
+                            } else {
+                                continue;
+                            }
+                        }
                         if let Err(e) = w.write_sample(float_sample) {
                             log::error!("Failed to write sample: {}", e);
                             return;

@@ -1,6 +1,7 @@
 mod audio;
 mod commands;
 mod discord;
+mod settings;
 
 use commands::{DiscordState, RecorderState};
 use parking_lot::Mutex;
@@ -16,6 +17,8 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .setup(|app| {
             if cfg!(debug_assertions) {
                 app.handle().plugin(
@@ -46,17 +49,19 @@ pub fn run() {
                     }
                     "record" => {
                         let state = app.state::<RecorderState>();
+                        let settings_state = app.state::<settings::SettingsState>();
                         let mut recorder = state.0.lock();
                         if !recorder.is_recording() {
-                            let recordings_dir = dirs::audio_dir()
-                                .or_else(dirs::home_dir)
-                                .unwrap_or_else(|| std::path::PathBuf::from("."))
-                                .join("DiscRec");
+                            let recordings_dir = settings::recordings_dir(&settings_state);
+                            let silence_trim = settings_state.0.lock().silence_trim;
                             let timestamp = chrono::Local::now().format("%Y-%m-%d_%H%M%S");
                             let filename = format!("discord-{}.wav", timestamp);
                             let path = recordings_dir.join(&filename);
-                            let _ = recorder
-                                .start(&path.to_string_lossy(), audio::encoder::AudioFormat::Wav);
+                            let _ = recorder.start(
+                                &path.to_string_lossy(),
+                                audio::encoder::AudioFormat::Wav,
+                                silence_trim,
+                            );
                         }
                     }
                     "stop" => {
@@ -94,6 +99,7 @@ pub fn run() {
         .manage(DiscordState(tokio::sync::Mutex::new(
             discord::bot::DiscordBot::new(),
         )))
+        .manage(settings::SettingsState::load())
         .invoke_handler(tauri::generate_handler![
             commands::start_recording,
             commands::stop_recording,
@@ -113,6 +119,10 @@ pub fn run() {
             commands::save_bot_token,
             commands::load_bot_token,
             commands::delete_bot_token,
+            commands::get_output_dir,
+            commands::set_output_dir,
+            commands::get_silence_trim,
+            commands::set_silence_trim,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

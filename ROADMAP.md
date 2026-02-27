@@ -69,14 +69,22 @@
 
 ## v1.2.0 — Advanced Features
 
-- [ ] OGG Vorbis export (requires bundling libvorbis or finding pure-Rust encoder)
-- [ ] Tauri updater integration (auto-update on new release)
+- [x] Tauri updater integration (auto-update via GitHub releases, signed artifacts)
+- [x] Configurable output directory (persisted settings.json, folder picker in settings)
+- [x] Silence detection — leading silence gate (skips silence at start of recordings)
+
+### Lessons learned
+- Tauri v2 updater requires `tauri-plugin-updater` + `tauri-plugin-process`, signing keys via `tauri signer generate`, and `TAURI_SIGNING_PRIVATE_KEY` as a GitHub Actions secret
+- The updater endpoint `https://github.com/user/repo/releases/latest/download/latest.json` works out of the box with `tauri-action` when `createUpdaterArtifacts: true`
+- Settings persistence via a simple JSON file in `dirs::config_dir()/DiscRec/settings.json` is the cleanest approach — no database needed
+- Leading silence gate (amplitude threshold 0.005) in the capture thread is simple, effective, and format-agnostic
+
+## v1.3.0 — Platform & Visualization
+
 - [ ] Audio source selector (choose which app to capture, not just Discord)
 - [ ] Linux per-app capture (PipeWire filter nodes)
 - [ ] Real-time audio waveform / spectrogram view
-- [ ] Silence detection (auto-trim silence from recordings)
 - [ ] Split recording by speaker (label tracks with Discord usernames)
-- [ ] Configurable output directory
 
 ## v2.0.0 — Cloud & Sharing
 

@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "DiscRec",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "identifier": "com.discrec.app",
   "build": {
     "frontendDist": "../dist",
@@ -35,8 +35,17 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "createUpdaterArtifacts": true,
     "category": "Utility",
     "shortDescription": "Beautiful Discord audio recorder",
     "longDescription": "DiscRec is a minimal, cross-platform desktop app that records Discord audio output with one click."
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEREMDYwQkU0OTM5RDI5QjQKUldTMEtaM1Q1QXNHM1JJLzQ3dzg3dE9WcWdWR0J4NFdSSWNXakhsNjZ0d3VPRXVrSWkwUHpHVkgK",
+      "endpoints": [
+        "https://github.com/jmpijll/discrec/releases/latest/download/latest.json"
+      ]
+    }
   }
 }
