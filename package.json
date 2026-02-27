@@ -1,7 +1,7 @@
 {
   "name": "discrec",
   "private": true,
-  "version": "1.0.1",
+  "version": "1.0.2",
   "type": "module",
   "description": "Beautiful, minimal Discord audio recorder",
   "scripts": {

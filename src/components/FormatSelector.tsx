@@ -15,21 +15,26 @@ const formats: { value: AudioFormat; label: string; desc: string }[] = [
 
 export function FormatSelector({ value, onChange, disabled }: FormatSelectorProps) {
   return (
-    <div className="flex items-center gap-1 p-1 rounded-lg bg-bg-elevated border border-border">
+    <div className="flex items-center gap-1.5 p-1 rounded-lg bg-bg-primary border border-border/50">
       {formats.map((fmt) => (
         <button
           key={fmt.value}
           onClick={() => onChange(fmt.value)}
           disabled={disabled}
           className={cn(
-            "px-3 py-1.5 rounded-md text-xs font-medium transition-all cursor-pointer",
+            "flex-1 flex flex-col items-center gap-0.5 px-3 py-2 rounded-md text-xs font-medium transition-all cursor-pointer",
             value === fmt.value
-              ? "bg-accent text-white shadow-sm"
-              : "text-text-muted hover:text-text-secondary"
+              ? "bg-accent text-white shadow-sm shadow-accent/20"
+              : "text-text-muted hover:text-text-secondary hover:bg-bg-elevated/50"
           )}
-          title={fmt.desc}
         >
-          {fmt.label}
+          <span>{fmt.label}</span>
+          <span className={cn(
+            "text-[9px] font-normal",
+            value === fmt.value ? "text-white/60" : "text-text-muted/50"
+          )}>
+            {fmt.desc}
+          </span>
         </button>
       ))}
     </div>
