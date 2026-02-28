@@ -45,6 +45,7 @@ impl AudioCapture {
         output_path: &str,
         format: AudioFormat,
         silence_trim: bool,
+        max_duration_secs: Option<u32>,
     ) -> Result<()> {
         if self.is_recording() {
             anyhow::bail!("Already recording");
@@ -62,6 +63,7 @@ impl AudioCapture {
                     &path,
                     format,
                     silence_trim,
+                    max_duration_secs,
                     &is_recording,
                     &peak_level_bits,
                     &stop_rx,
@@ -76,6 +78,7 @@ impl AudioCapture {
                     &path,
                     format,
                     silence_trim,
+                    max_duration_secs,
                     &is_recording,
                     &peak_level_bits,
                     &stop_rx,
@@ -91,10 +94,6 @@ impl AudioCapture {
     }
 
     pub fn stop(&mut self) -> Result<Option<String>> {
-        if !self.is_recording() {
-            return Ok(None);
-        }
-
         self.is_recording.store(false, Ordering::Relaxed);
         self.peak_level_bits
             .store(0f32.to_bits(), Ordering::Relaxed);
@@ -161,11 +160,13 @@ fn capture_windows(
     path: &str,
     format: AudioFormat,
     silence_trim: bool,
+    max_duration_secs: Option<u32>,
     is_recording: &Arc<AtomicBool>,
     peak_level_bits: &Arc<AtomicU32>,
     stop_rx: &mpsc::Receiver<StreamMsg>,
 ) -> Result<Option<String>> {
     use std::collections::VecDeque;
+    use std::time::Instant;
     use wasapi::*;
 
     let discord_pid = find_discord_pid()?;
@@ -223,11 +224,21 @@ fn capture_windows(
 
     let mut sample_queue: VecDeque<u8> = VecDeque::new();
     let bytes_per_frame = blockalign as usize;
+    let start_time = Instant::now();
 
     loop {
         // Check for stop signal (non-blocking)
         if stop_rx.try_recv().is_ok() || !is_recording.load(Ordering::Relaxed) {
             break;
+        }
+
+        // Check max duration
+        if let Some(max_secs) = max_duration_secs {
+            if start_time.elapsed().as_secs() >= max_secs as u64 {
+                log::info!("Max recording duration ({max_secs}s) reached, auto-stopping");
+                is_recording.store(false, Ordering::Relaxed);
+                break;
+            }
         }
 
         // Wait for audio data (up to 200ms timeout)
@@ -300,6 +311,7 @@ fn capture_cpal(
     path: &str,
     format: AudioFormat,
     silence_trim: bool,
+    max_duration_secs: Option<u32>,
     is_recording: &Arc<AtomicBool>,
     peak_level_bits: &Arc<AtomicU32>,
     stop_rx: &mpsc::Receiver<StreamMsg>,
@@ -309,9 +321,21 @@ fn capture_cpal(
     use cpal::traits::{DeviceTrait, StreamTrait};
     use cpal::{SampleFormat, StreamConfig};
     use parking_lot::Mutex;
+    use std::time::{Duration, Instant};
 
     let host = cpal::default_host();
-    let device = get_loopback_device(&host)?;
+
+    // On Linux, try per-app Discord routing via PulseAudio/PipeWire
+    #[cfg(target_os = "linux")]
+    let _routing = pulse_routing::DiscordRouting::setup();
+
+    #[cfg(target_os = "linux")]
+    let preferred_source = _routing.as_ref().map(|r| r.monitor_source());
+
+    #[cfg(not(target_os = "linux"))]
+    let preferred_source: Option<&str> = None;
+
+    let device = get_loopback_device(&host, preferred_source)?;
     let config = device
         .default_output_config()
         .context("Failed to get default output config")?;
@@ -396,8 +420,24 @@ fn capture_cpal(
     stream.play().context("Failed to start audio stream")?;
     log::info!("Recording started: {}", path);
 
-    // Block until stop signal
-    let _ = stop_rx.recv();
+    // Block until stop signal or max duration
+    let start_time = Instant::now();
+    loop {
+        let timeout = Duration::from_secs(1);
+        match stop_rx.recv_timeout(timeout) {
+            Ok(_) => break,
+            Err(mpsc::RecvTimeoutError::Timeout) => {
+                if let Some(max_secs) = max_duration_secs {
+                    if start_time.elapsed().as_secs() >= max_secs as u64 {
+                        log::info!("Max recording duration ({max_secs}s) reached, auto-stopping");
+                        is_recording.store(false, Ordering::Relaxed);
+                        break;
+                    }
+                }
+            }
+            Err(mpsc::RecvTimeoutError::Disconnected) => break,
+        }
+    }
 
     // Drop stream first to stop callbacks
     drop(stream);
@@ -415,8 +455,162 @@ fn capture_cpal(
     Ok(result)
 }
 
+// ---------------------------------------------------------------------------
+// Linux: PulseAudio/PipeWire per-app routing for Discord-only capture
+// ---------------------------------------------------------------------------
+
 #[cfg(target_os = "linux")]
-fn get_loopback_device(host: &cpal::Host) -> Result<cpal::Device> {
+mod pulse_routing {
+    use std::process::Command;
+
+    pub struct DiscordRouting {
+        null_sink_module: u32,
+        loopback_module: u32,
+        sink_input_idx: u32,
+        original_sink: u32,
+    }
+
+    impl DiscordRouting {
+        /// Try to set up per-app routing. Returns None if pactl or Discord not found.
+        pub fn setup() -> Option<Self> {
+            // Find Discord's sink input
+            let (sink_input_idx, original_sink) = find_discord_sink_input()?;
+            log::info!("Found Discord sink input #{sink_input_idx} on sink #{original_sink}");
+
+            // Create null sink for capture
+            let null_sink_module = run_pactl(&[
+                "load-module",
+                "module-null-sink",
+                "sink_name=discrec_capture",
+                "sink_properties=device.description=DiscRec",
+                "rate=48000",
+                "channels=2",
+            ])?;
+            log::info!("Created null sink (module #{null_sink_module})");
+
+            // Create loopback so user still hears Discord
+            let loopback_module = run_pactl(&[
+                "load-module",
+                "module-loopback",
+                "source=discrec_capture.monitor",
+                "latency_msec=1",
+            ]);
+            if loopback_module.is_none() {
+                log::warn!("Failed to create loopback — user won't hear Discord during recording");
+            }
+
+            // Move Discord to our capture sink
+            let moved = Command::new("pactl")
+                .args([
+                    "move-sink-input",
+                    &sink_input_idx.to_string(),
+                    "discrec_capture",
+                ])
+                .output()
+                .ok()
+                .map(|o| o.status.success())
+                .unwrap_or(false);
+
+            if !moved {
+                log::warn!("Failed to move Discord sink input — falling back to system capture");
+                let _ = unload_module(null_sink_module);
+                if let Some(lb) = loopback_module {
+                    let _ = unload_module(lb);
+                }
+                return None;
+            }
+
+            log::info!("Discord audio routed to discrec_capture sink");
+            Some(Self {
+                null_sink_module,
+                loopback_module: loopback_module.unwrap_or(0),
+                sink_input_idx,
+                original_sink,
+            })
+        }
+
+        pub fn monitor_source(&self) -> &str {
+            "discrec_capture.monitor"
+        }
+    }
+
+    impl Drop for DiscordRouting {
+        fn drop(&mut self) {
+            // Move Discord back to original sink
+            let _ = Command::new("pactl")
+                .args([
+                    "move-sink-input",
+                    &self.sink_input_idx.to_string(),
+                    &self.original_sink.to_string(),
+                ])
+                .output();
+            log::info!("Restored Discord to original sink #{}", self.original_sink);
+
+            if self.loopback_module != 0 {
+                let _ = unload_module(self.loopback_module);
+            }
+            let _ = unload_module(self.null_sink_module);
+            log::info!("Cleaned up PulseAudio modules");
+        }
+    }
+
+    fn run_pactl(args: &[&str]) -> Option<u32> {
+        let output = Command::new("pactl").args(args).output().ok()?;
+        if !output.status.success() {
+            return None;
+        }
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        stdout.trim().parse().ok()
+    }
+
+    fn unload_module(id: u32) -> bool {
+        Command::new("pactl")
+            .args(["unload-module", &id.to_string()])
+            .output()
+            .ok()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+    }
+
+    /// Parse `pactl list sink-inputs` to find Discord's sink input index and current sink.
+    fn find_discord_sink_input() -> Option<(u32, u32)> {
+        let output = Command::new("pactl")
+            .args(["list", "sink-inputs"])
+            .output()
+            .ok()?;
+        if !output.status.success() {
+            log::warn!("pactl not available — cannot set up per-app capture");
+            return None;
+        }
+
+        let text = String::from_utf8_lossy(&output.stdout);
+        let mut current_idx: Option<u32> = None;
+        let mut current_sink: Option<u32> = None;
+
+        for line in text.lines() {
+            let trimmed = line.trim();
+            if let Some(rest) = trimmed.strip_prefix("Sink Input #") {
+                current_idx = rest.parse().ok();
+                current_sink = None;
+            } else if let Some(rest) = trimmed.strip_prefix("Sink: ") {
+                current_sink = rest.trim().parse().ok();
+            } else if trimmed.contains("application.name") {
+                let lower = trimmed.to_lowercase();
+                if lower.contains("discord") {
+                    if let (Some(idx), Some(sink)) = (current_idx, current_sink) {
+                        return Some((idx, sink));
+                    }
+                }
+            }
+        }
+
+        log::info!("Discord sink input not found in pactl output");
+        None
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn get_loopback_device(host: &cpal::Host, preferred_source: Option<&str>) -> Result<cpal::Device> {
     use anyhow::Context;
     use cpal::traits::{DeviceTrait, HostTrait};
 
@@ -424,6 +618,21 @@ fn get_loopback_device(host: &cpal::Host) -> Result<cpal::Device> {
     if let Ok(devices) = host.input_devices() {
         let names: Vec<String> = devices.filter_map(|d| d.name().ok()).collect();
         log::info!("Available input devices: {:?}", names);
+    }
+
+    // If we have a preferred source (from per-app routing), find it
+    if let Some(preferred) = preferred_source {
+        if let Some(device) = host
+            .input_devices()?
+            .find(|d| d.name().map(|n| n.contains(preferred)).unwrap_or(false))
+        {
+            log::info!(
+                "Using per-app capture device: {}",
+                device.name().unwrap_or_default()
+            );
+            return Ok(device);
+        }
+        log::warn!("Preferred source '{preferred}' not found, falling back to monitor");
     }
 
     // PulseAudio/PipeWire monitor sources contain "monitor" in the name
@@ -447,7 +656,7 @@ fn get_loopback_device(host: &cpal::Host) -> Result<cpal::Device> {
 }
 
 #[cfg(target_os = "macos")]
-fn get_loopback_device(host: &cpal::Host) -> Result<cpal::Device> {
+fn get_loopback_device(host: &cpal::Host, _preferred_source: Option<&str>) -> Result<cpal::Device> {
     use anyhow::Context;
     use cpal::traits::{DeviceTrait, HostTrait};
 

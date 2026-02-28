@@ -36,7 +36,10 @@ pub fn start_recording(
     let fmt = format.unwrap_or(AudioFormat::Wav);
 
     let recordings_dir = crate::settings::recordings_dir(&settings);
-    let silence_trim = settings.0.lock().silence_trim;
+    let s = settings.0.lock();
+    let silence_trim = s.silence_trim;
+    let max_duration_secs = s.max_duration_secs;
+    drop(s);
 
     let timestamp = Local::now().format("%Y-%m-%d_%H%M%S");
     let filename = format!("discord-{}.{}", timestamp, fmt.extension());
@@ -44,7 +47,7 @@ pub fn start_recording(
     let path_str = output_path.to_string_lossy().to_string();
 
     recorder
-        .start(&path_str, fmt, silence_trim)
+        .start(&path_str, fmt, silence_trim, max_duration_secs)
         .map_err(|e| e.to_string())?;
     Ok(path_str)
 }
@@ -256,8 +259,10 @@ pub async fn discord_start_recording(
         .to_string_lossy()
         .to_string();
 
+    let notify = settings.0.lock().notify_on_record;
+
     let bot = state.0.lock().await;
-    bot.start_recording(gid, cid, &output_dir, fmt)
+    bot.start_recording(gid, cid, &output_dir, fmt, notify)
         .await
         .map_err(|e| e.to_string())
 }
@@ -334,6 +339,62 @@ pub fn set_silence_trim(settings: State<'_, SettingsState>, enabled: bool) -> bo
     {
         let mut s = settings.0.lock();
         s.silence_trim = enabled;
+    }
+    settings.save();
+    enabled
+}
+
+// --- Max duration commands ---
+
+#[tauri::command]
+pub fn get_max_duration(settings: State<'_, SettingsState>) -> Option<u32> {
+    settings.0.lock().max_duration_secs
+}
+
+#[tauri::command]
+pub fn set_max_duration(settings: State<'_, SettingsState>, seconds: Option<u32>) -> Option<u32> {
+    {
+        let mut s = settings.0.lock();
+        s.max_duration_secs = seconds;
+    }
+    settings.save();
+    seconds
+}
+
+// --- Shortcuts commands ---
+
+#[tauri::command]
+pub fn get_shortcuts(settings: State<'_, SettingsState>) -> crate::settings::ShortcutConfig {
+    settings.0.lock().shortcuts.clone()
+}
+
+#[tauri::command]
+pub fn set_shortcuts(
+    settings: State<'_, SettingsState>,
+    record: String,
+    stop: String,
+) -> crate::settings::ShortcutConfig {
+    let config = crate::settings::ShortcutConfig { record, stop };
+    {
+        let mut s = settings.0.lock();
+        s.shortcuts = config.clone();
+    }
+    settings.save();
+    settings.0.lock().shortcuts.clone()
+}
+
+// --- Notify on record commands ---
+
+#[tauri::command]
+pub fn get_notify_on_record(settings: State<'_, SettingsState>) -> bool {
+    settings.0.lock().notify_on_record
+}
+
+#[tauri::command]
+pub fn set_notify_on_record(settings: State<'_, SettingsState>, enabled: bool) -> bool {
+    {
+        let mut s = settings.0.lock();
+        s.notify_on_record = enabled;
     }
     settings.save();
     enabled

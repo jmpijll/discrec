@@ -53,7 +53,10 @@ pub fn run() {
                         let mut recorder = state.0.lock();
                         if !recorder.is_recording() {
                             let recordings_dir = settings::recordings_dir(&settings_state);
-                            let silence_trim = settings_state.0.lock().silence_trim;
+                            let s = settings_state.0.lock();
+                            let silence_trim = s.silence_trim;
+                            let max_duration = s.max_duration_secs;
+                            drop(s);
                             let timestamp = chrono::Local::now().format("%Y-%m-%d_%H%M%S");
                             let filename = format!("discord-{}.wav", timestamp);
                             let path = recordings_dir.join(&filename);
@@ -61,6 +64,7 @@ pub fn run() {
                                 &path.to_string_lossy(),
                                 audio::encoder::AudioFormat::Wav,
                                 silence_trim,
+                                max_duration,
                             );
                         }
                     }
@@ -123,6 +127,12 @@ pub fn run() {
             commands::set_output_dir,
             commands::get_silence_trim,
             commands::set_silence_trim,
+            commands::get_max_duration,
+            commands::set_max_duration,
+            commands::get_shortcuts,
+            commands::set_shortcuts,
+            commands::get_notify_on_record,
+            commands::set_notify_on_record,
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {

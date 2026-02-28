@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
-import { X, Bot, Music, Clock, Zap, Check, Loader2, Sun, Moon, FolderOpen, RotateCcw, VolumeX } from "lucide-react";
+import { X, Bot, Music, Clock, Zap, Check, Loader2, Sun, Moon, FolderOpen, RotateCcw, VolumeX, Timer, Bell } from "lucide-react";
 import { useUpdater } from "../hooks/useUpdater";
 import { FormatSelector, type AudioFormat } from "./FormatSelector";
 import { DiscordPanel } from "./DiscordPanel";
@@ -65,6 +65,11 @@ export function SettingsPanel({
   const [outputDir, setOutputDir] = useState("");
   const [isCustomDir, setIsCustomDir] = useState(false);
   const [silenceTrim, setSilenceTrim] = useState(false);
+  const [maxDuration, setMaxDuration] = useState<number | null>(null);
+  const [recordKey, setRecordKey] = useState("ctrl+r");
+  const [stopKey, setStopKey] = useState("ctrl+s");
+  const [capturingKey, setCapturingKey] = useState<"record" | "stop" | null>(null);
+  const [notifyOnRecord, setNotifyOnRecord] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -76,6 +81,15 @@ export function SettingsPanel({
     }).catch(() => {});
     invoke<boolean>("get_silence_trim").then((val) => {
       if (!cancelled) setSilenceTrim(val);
+    }).catch(() => {});
+    invoke<number | null>("get_max_duration").then((val) => {
+      if (!cancelled) setMaxDuration(val);
+    }).catch(() => {});
+    invoke<{ record: string; stop: string }>("get_shortcuts").then((s) => {
+      if (!cancelled) { setRecordKey(s.record); setStopKey(s.stop); }
+    }).catch(() => {});
+    invoke<boolean>("get_notify_on_record").then((val) => {
+      if (!cancelled) setNotifyOnRecord(val);
     }).catch(() => {});
     return () => { cancelled = true; };
   }, []);
@@ -105,6 +119,53 @@ export function SettingsPanel({
       setIsCustomDir(info.is_custom);
     } catch { /* ignore */ }
   };
+
+  const handleMaxDuration = async (seconds: number | null) => {
+    try {
+      const val = await invoke<number | null>("set_max_duration", { seconds });
+      setMaxDuration(val);
+    } catch { /* ignore */ }
+  };
+
+  const handleKeyCapture = (target: "record" | "stop") => {
+    setCapturingKey(target);
+    const handler = (e: KeyboardEvent) => {
+      e.preventDefault();
+      if (e.key === "Escape") { setCapturingKey(null); window.removeEventListener("keydown", handler); return; }
+      const parts: string[] = [];
+      if (e.ctrlKey || e.metaKey) parts.push("ctrl");
+      if (e.shiftKey) parts.push("shift");
+      if (e.altKey) parts.push("alt");
+      const key = e.key.toLowerCase();
+      if (!["control", "shift", "alt", "meta"].includes(key)) parts.push(key);
+      if (parts.length > 0 && parts[parts.length - 1] !== "ctrl" && parts[parts.length - 1] !== "shift" && parts[parts.length - 1] !== "alt") {
+        const combo = parts.join("+");
+        const newRecord = target === "record" ? combo : recordKey;
+        const newStop = target === "stop" ? combo : stopKey;
+        invoke("set_shortcuts", { record: newRecord, stop: newStop }).catch(() => {});
+        if (target === "record") setRecordKey(combo); else setStopKey(combo);
+        setCapturingKey(null);
+      }
+      window.removeEventListener("keydown", handler);
+    };
+    window.addEventListener("keydown", handler);
+  };
+
+  const handleNotifyOnRecord = async (enabled: boolean) => {
+    try {
+      const val = await invoke<boolean>("set_notify_on_record", { enabled });
+      setNotifyOnRecord(val);
+    } catch { /* ignore */ }
+  };
+
+  const durationOptions: { label: string; value: number | null }[] = [
+    { label: "No limit", value: null },
+    { label: "5 min", value: 300 },
+    { label: "15 min", value: 900 },
+    { label: "30 min", value: 1800 },
+    { label: "1 hour", value: 3600 },
+    { label: "2 hours", value: 7200 },
+  ];
 
   const updateLabel =
     updater.status === "up-to-date" ? "Up to date" :
@@ -170,6 +231,37 @@ export function SettingsPanel({
               onSelectChannel={onSelectChannel}
             />
           </div>
+
+          {/* Notify on record toggle — only when connected */}
+          {discordConnected && (
+            <div className="border-t border-border/30 pt-3">
+              <button
+                onClick={() => handleNotifyOnRecord(!notifyOnRecord)}
+                className="flex items-center justify-between w-full cursor-pointer"
+              >
+                <div className="flex items-center gap-2">
+                  <Bell className={cn("w-3.5 h-3.5", notifyOnRecord ? "text-success" : "text-text-muted/40")} />
+                  <div className="text-left">
+                    <p className="text-[11px] font-medium text-text-primary leading-tight">Notify channel</p>
+                    <p className="text-[9px] text-text-muted/50 leading-tight mt-0.5">Post message when recording starts</p>
+                  </div>
+                </div>
+                <div
+                  className={cn(
+                    "w-8 h-[18px] rounded-full transition-colors relative",
+                    notifyOnRecord ? "bg-success" : "bg-border"
+                  )}
+                >
+                  <div
+                    className={cn(
+                      "absolute top-[2px] w-[14px] h-[14px] rounded-full bg-white transition-transform",
+                      notifyOnRecord ? "translate-x-[16px]" : "translate-x-[2px]"
+                    )}
+                  />
+                </div>
+              </button>
+            </div>
+          )}
 
           {discordConnected && selectedChannel && (
             <div className="border-t border-border/30 pt-3 animate-fade-in">
@@ -278,6 +370,56 @@ export function SettingsPanel({
               </div>
             </button>
           </div>
+
+          {/* Max duration */}
+          <div className="border-t border-border/30 pt-3">
+            <div className="flex items-center gap-2">
+              <Timer className="w-3.5 h-3.5 text-text-muted/40 shrink-0" />
+              <span className="text-[11px] font-medium text-text-primary">Max duration</span>
+              <div className="flex-1" />
+              <select
+                value={maxDuration ?? ""}
+                onChange={(e) => handleMaxDuration(e.target.value ? Number(e.target.value) : null)}
+                className="text-[10px] bg-bg-primary border border-border/50 rounded-md px-2 py-1 text-text-secondary cursor-pointer outline-none"
+              >
+                {durationOptions.map((opt) => (
+                  <option key={opt.label} value={opt.value ?? ""}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Keyboard shortcuts */}
+          <div className="border-t border-border/30 pt-3 space-y-1.5">
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-text-muted flex-1">Record</span>
+              <button
+                onClick={() => handleKeyCapture("record")}
+                className={cn(
+                  "text-[10px] font-mono px-2 py-0.5 rounded border transition-all cursor-pointer",
+                  capturingKey === "record"
+                    ? "border-accent bg-accent/10 text-accent animate-pulse"
+                    : "border-border/50 bg-bg-primary text-text-muted/70 hover:border-accent/50"
+                )}
+              >
+                {capturingKey === "record" ? "Press key…" : recordKey}
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-text-muted flex-1">Stop</span>
+              <button
+                onClick={() => handleKeyCapture("stop")}
+                className={cn(
+                  "text-[10px] font-mono px-2 py-0.5 rounded border transition-all cursor-pointer",
+                  capturingKey === "stop"
+                    ? "border-accent bg-accent/10 text-accent animate-pulse"
+                    : "border-border/50 bg-bg-primary text-text-muted/70 hover:border-accent/50"
+                )}
+              >
+                {capturingKey === "stop" ? "Press key…" : stopKey}
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Recording history — card */}
@@ -323,7 +465,7 @@ export function SettingsPanel({
           </button>
         </div>
         <div className="flex items-center gap-2 text-[9px] text-text-muted/20 shrink-0">
-          <kbd className="font-mono px-1 py-0.5 rounded bg-bg-primary/50 border border-border/30">Ctrl+R</kbd>
+          <kbd className="font-mono px-1 py-0.5 rounded bg-bg-primary/50 border border-border/30">{recordKey}</kbd>
           <span>rec</span>
           <kbd className="font-mono px-1 py-0.5 rounded bg-bg-primary/50 border border-border/30">Esc</kbd>
           <span>stop</span>

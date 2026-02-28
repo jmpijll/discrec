@@ -1,11 +1,30 @@
 import { useEffect } from "react";
 
+export interface ShortcutConfig {
+  record: string;
+  stop: string;
+}
+
 interface KeyboardShortcutOptions {
   onRecord: () => void;
   onStop: () => void;
   isRecording: boolean;
   canRecord: boolean;
   disabled?: boolean;
+  shortcuts?: ShortcutConfig;
+}
+
+function matchesShortcut(e: KeyboardEvent, shortcut: string): boolean {
+  const parts = shortcut.toLowerCase().split("+").map((s) => s.trim());
+  const key = parts[parts.length - 1];
+  const needCtrl = parts.includes("ctrl") || parts.includes("cmd") || parts.includes("meta");
+  const needShift = parts.includes("shift");
+  const needAlt = parts.includes("alt");
+
+  if (needCtrl && !(e.ctrlKey || e.metaKey)) return false;
+  if (needShift && !e.shiftKey) return false;
+  if (needAlt && !e.altKey) return false;
+  return e.key.toLowerCase() === key;
 }
 
 export function useKeyboardShortcuts({
@@ -14,6 +33,7 @@ export function useKeyboardShortcuts({
   isRecording,
   canRecord,
   disabled = false,
+  shortcuts = { record: "ctrl+r", stop: "ctrl+s" },
 }: KeyboardShortcutOptions) {
   useEffect(() => {
     if (disabled) return;
@@ -29,23 +49,23 @@ export function useKeyboardShortcuts({
         return;
       }
 
-      // Ctrl+R / Cmd+R — start recording
-      if ((e.ctrlKey || e.metaKey) && e.key === "r") {
+      // Custom record shortcut
+      if (matchesShortcut(e, shortcuts.record)) {
         e.preventDefault();
         if (!isRecording && canRecord) {
           onRecord();
         }
       }
 
-      // Ctrl+S / Cmd+S — stop recording
-      if ((e.ctrlKey || e.metaKey) && e.key === "s") {
+      // Custom stop shortcut
+      if (matchesShortcut(e, shortcuts.stop)) {
         e.preventDefault();
         if (isRecording) {
           onStop();
         }
       }
 
-      // Escape — stop recording
+      // Escape — always stops recording
       if (e.key === "Escape" && isRecording) {
         e.preventDefault();
         onStop();
@@ -54,5 +74,5 @@ export function useKeyboardShortcuts({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onRecord, onStop, isRecording, canRecord, disabled]);
+  }, [onRecord, onStop, isRecording, canRecord, disabled, shortcuts]);
 }

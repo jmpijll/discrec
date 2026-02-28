@@ -2,12 +2,42 @@ use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ShortcutConfig {
+    #[serde(default = "default_record_shortcut")]
+    pub record: String,
+    #[serde(default = "default_stop_shortcut")]
+    pub stop: String,
+}
+
+fn default_record_shortcut() -> String {
+    "ctrl+r".to_string()
+}
+fn default_stop_shortcut() -> String {
+    "ctrl+s".to_string()
+}
+
+impl Default for ShortcutConfig {
+    fn default() -> Self {
+        Self {
+            record: default_record_shortcut(),
+            stop: default_stop_shortcut(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct AppSettings {
     #[serde(default)]
     pub output_dir: Option<String>,
     #[serde(default)]
     pub silence_trim: bool,
+    #[serde(default)]
+    pub max_duration_secs: Option<u32>,
+    #[serde(default)]
+    pub shortcuts: ShortcutConfig,
+    #[serde(default)]
+    pub notify_on_record: bool,
 }
 
 pub struct SettingsState(pub Mutex<AppSettings>);

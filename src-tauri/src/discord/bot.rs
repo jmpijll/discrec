@@ -175,6 +175,7 @@ impl DiscordBot {
         channel_id: u64,
         output_dir: &str,
         format: AudioFormat,
+        notify: bool,
     ) -> Result<()> {
         if self.is_recording() {
             anyhow::bail!("Already recording");
@@ -221,6 +222,18 @@ impl DiscordBot {
             guild_id,
             channel_id
         );
+
+        // Send notification to the voice channel's text chat
+        if notify {
+            let ctx_guard = self.ctx_store.read().await;
+            if let Some(ctx) = ctx_guard.as_ref() {
+                match cid.say(&ctx.http, "🔴 Recording started by DiscRec").await {
+                    Ok(_) => log::info!("Sent recording notification to channel"),
+                    Err(e) => log::warn!("Failed to send recording notification: {}", e),
+                }
+            }
+        }
+
         Ok(())
     }
 

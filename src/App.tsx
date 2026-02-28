@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useDiscord } from "./hooks/useDiscord";
 import { useRecorder } from "./hooks/useRecorder";
-import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
+import { useKeyboardShortcuts, type ShortcutConfig } from "./hooks/useKeyboardShortcuts";
 import { RecordButton } from "./components/RecordButton";
 import { StatusBar } from "./components/StatusBar";
 import { AudioMeter } from "./components/AudioMeter";
@@ -21,6 +21,12 @@ function App() {
     return (localStorage.getItem("discrec-theme") as Theme) || "dark";
   });
   const prevMemberCount = useRef<number | null>(null);
+  const [shortcuts, setShortcuts] = useState<ShortcutConfig>({ record: "ctrl+r", stop: "ctrl+s" });
+
+  // Load shortcuts from settings
+  useEffect(() => {
+    invoke<ShortcutConfig>("get_shortcuts").then(setShortcuts).catch(() => {});
+  }, []);
 
   // Determine which mode is active
   const isDiscordMode = discord.state !== "disconnected";
@@ -68,7 +74,22 @@ function App() {
     isRecording,
     canRecord,
     disabled: showSettings || isDone,
+    shortcuts,
   });
+
+  // Detect auto-stop (max duration) — poll recording status
+  useEffect(() => {
+    if (!isRecording || isDiscordMode) return;
+    const check = setInterval(async () => {
+      try {
+        const status = await invoke<{ is_recording: boolean; peak_level: number }>("get_status");
+        if (!status.is_recording && recorder.state === "recording") {
+          recorder.stopRecording();
+        }
+      } catch { /* ignore */ }
+    }, 1000);
+    return () => clearInterval(check);
+  }, [isRecording, isDiscordMode, recorder]);
 
   // Theme management
   const handleThemeChange = useCallback((newTheme: Theme) => {
