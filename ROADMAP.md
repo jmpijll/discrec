@@ -93,10 +93,16 @@
 
 ## v1.3.0 — Polish & Parity
 
-- [ ] Linux: capture only Discord audio via PipeWire per-app filtering (parity with Windows WASAPI per-process capture)
-- [ ] Customizable keyboard shortcuts (currently hardcoded Ctrl+R / Ctrl+S)
-- [ ] Max recording duration / file size limit (safety against filling disk)
-- [ ] Recording notification in Discord (bot sends message when recording starts)
+- [x] Linux: capture only Discord audio via PulseAudio/PipeWire per-app routing (null sink + loopback + move-sink-input)
+- [x] Customizable keyboard shortcuts (key capture UI, persisted, supports ctrl/shift/alt combos)
+- [x] Max recording duration (5m/15m/30m/1h/2h/unlimited — auto-stops capture loop)
+- [x] Recording notification in Discord (bot sends "🔴 Recording started" to voice channel text chat)
+
+### Lessons learned
+- PulseAudio per-app capture uses `pactl load-module module-null-sink` + `module-loopback` + `move-sink-input` — works on both PulseAudio and PipeWire (via PulseAudio compat). `Drop` trait ensures cleanup even on panic
+- `recv_timeout(1s)` in the cpal capture loop is cleaner than busy-polling for max duration checks
+- Key capture UI: listen for next `keydown`, build combo string from modifier flags + key, save via Tauri command. Escape cancels capture
+- Discord voice channels have built-in text chat (since 2022) — `channel_id.say()` works directly without finding a separate text channel
 
 ## v2.0.0 — Intelligence
 
