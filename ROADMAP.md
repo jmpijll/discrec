@@ -79,17 +79,15 @@
 - Settings persistence via a simple JSON file in `dirs::config_dir()/DiscRec/settings.json` is the cleanest approach — no database needed
 - Leading silence gate (amplitude threshold 0.005) in the capture thread is simple, effective, and format-agnostic
 
-## v1.3.0 — Platform & Visualization
+## v1.3.0 — Polish & Parity
 
-- [ ] Audio source selector (choose which app to capture, not just Discord)
-- [ ] Linux per-app capture (PipeWire filter nodes)
-- [ ] Real-time audio waveform / spectrogram view
-- [ ] Split recording by speaker (label tracks with Discord usernames)
+- [ ] Linux: capture only Discord audio via PipeWire per-app filtering (parity with Windows WASAPI per-process capture)
+- [ ] Trailing silence trim (complement the leading silence gate from v1.2.0)
+- [ ] Customizable keyboard shortcuts (currently hardcoded Ctrl+R / Ctrl+S)
+- [ ] Max recording duration / file size limit (safety against filling disk)
+- [ ] Recording notification in Discord (bot sends message when recording starts)
 
-## v2.0.0 — Cloud & Sharing
+## v2.0.0 — Intelligence
 
-- [ ] Cloud upload integration (Google Drive, Dropbox, S3)
-- [ ] Shareable recording links
-- [ ] Transcription via Whisper (local or API)
-- [ ] Multi-language UI
-- [ ] Plugin system for custom audio processors
+- [ ] Transcription via Whisper (local or API — meeting notes, podcast recap)
+- [ ] Recording summary / highlights (auto-detect key moments)
