@@ -79,10 +79,21 @@
 - Settings persistence via a simple JSON file in `dirs::config_dir()/DiscRec/settings.json` is the cleanest approach — no database needed
 - Leading silence gate (amplitude threshold 0.005) in the capture thread is simple, effective, and format-agnostic
 
+## v1.2.1 — UX Refinements
+
+- [x] Full silence trim — `SilenceTrimEncoder` wrapper trims both leading AND trailing silence at the encoder layer
+- [x] Simplified Settings panel (8 cards → 3: Discord Bot, Recording, History + compact footer)
+- [x] Close-to-tray — window close hides to system tray instead of quitting; quit via tray menu
+- [x] Theme toggle moved to settings header; updates + keyboard shortcuts collapsed into footer
+
+### Lessons learned
+- A decorator/wrapper encoder (`SilenceTrimEncoder`) is cleaner than scattering silence gate logic across platform-specific capture code — format-agnostic, single source of truth
+- Trailing silence trim uses a buffer that flushes on non-silence and discards on finalize — simple and memory-efficient
+- `on_window_event` + `CloseRequested { api.prevent_close() }` + `window.hide()` is the standard Tauri v2 close-to-tray pattern
+
 ## v1.3.0 — Polish & Parity
 
 - [ ] Linux: capture only Discord audio via PipeWire per-app filtering (parity with Windows WASAPI per-process capture)
-- [ ] Trailing silence trim (complement the leading silence gate from v1.2.0)
 - [ ] Customizable keyboard shortcuts (currently hardcoded Ctrl+R / Ctrl+S)
 - [ ] Max recording duration / file size limit (safety against filling disk)
 - [ ] Recording notification in Discord (bot sends message when recording starts)
