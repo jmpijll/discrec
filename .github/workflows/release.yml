@@ -66,6 +66,6 @@ jobs:
           tagName: v__VERSION__
           releaseName: "DiscRec v__VERSION__"
           releaseBody: "See the assets below to download DiscRec for your platform."
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
