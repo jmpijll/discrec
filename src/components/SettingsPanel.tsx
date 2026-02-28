@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
-import { X, Bot, Music, Clock, Keyboard, Sun, Moon, Zap, Download, Check, Loader2, AlertCircle, FolderOpen, RotateCcw, VolumeX } from "lucide-react";
+import { X, Bot, Music, Clock, Zap, Check, Loader2, Sun, Moon, FolderOpen, RotateCcw, VolumeX } from "lucide-react";
 import { useUpdater } from "../hooks/useUpdater";
 import { FormatSelector, type AudioFormat } from "./FormatSelector";
 import { DiscordPanel } from "./DiscordPanel";
@@ -106,6 +106,15 @@ export function SettingsPanel({
     } catch { /* ignore */ }
   };
 
+  const updateLabel =
+    updater.status === "up-to-date" ? "Up to date" :
+    updater.status === "available" ? `v${updater.version} available` :
+    updater.status === "checking" ? "Checking…" :
+    updater.status === "downloading" ? `Updating ${(updater.progress / 1024 / 1024).toFixed(1)} MB` :
+    updater.status === "ready" ? "Restarting…" :
+    updater.status === "error" ? "Update failed" :
+    "Check for updates";
+
   return (
     <div className="absolute inset-0 bg-bg-primary/97 backdrop-blur-md z-50 flex flex-col animate-fade-in">
       {/* Header */}
@@ -113,17 +122,26 @@ export function SettingsPanel({
         <h2 className="text-[13px] font-semibold text-text-primary tracking-tight">
           Settings
         </h2>
-        <button
-          onClick={onClose}
-          className="p-1.5 rounded-lg hover:bg-bg-elevated text-text-muted/50 hover:text-text-primary transition-all cursor-pointer"
-        >
-          <X className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => onThemeChange(theme === "dark" ? "light" : "dark")}
+            className="p-1.5 rounded-lg hover:bg-bg-elevated text-text-muted/50 hover:text-text-primary transition-all cursor-pointer"
+            title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+          >
+            {theme === "dark" ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+          </button>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg hover:bg-bg-elevated text-text-muted/50 hover:text-text-primary transition-all cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {/* Settings content */}
       <div className="flex-1 px-5 py-4 space-y-3 overflow-y-auto">
-        {/* Discord Bot Integration — card */}
+        {/* Discord Bot — card */}
         <div className="rounded-xl bg-bg-card border border-border/50 p-4 space-y-3">
           <div className="flex items-center gap-2.5">
             <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-accent/10">
@@ -153,7 +171,6 @@ export function SettingsPanel({
             />
           </div>
 
-          {/* Auto-record toggle — only when connected with a channel selected */}
           {discordConnected && selectedChannel && (
             <div className="border-t border-border/30 pt-3 animate-fade-in">
               <button
@@ -189,7 +206,7 @@ export function SettingsPanel({
           )}
         </div>
 
-        {/* Recording format — card */}
+        {/* Recording — consolidated card */}
         <div className="rounded-xl bg-bg-card border border-border/50 p-4 space-y-3">
           <div className="flex items-center gap-2.5">
             <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-success/10">
@@ -197,85 +214,70 @@ export function SettingsPanel({
             </div>
             <div>
               <p className="text-xs font-semibold text-text-primary leading-tight">
-                Recording Format
+                Recording
               </p>
               <p className="text-[10px] text-text-muted/60 leading-tight mt-0.5">
-                Choose audio encoding
+                Format, output, and processing
               </p>
             </div>
           </div>
+
+          {/* Format selector */}
           <div className="border-t border-border/30 pt-3">
             <FormatSelector value={format} onChange={onFormatChange} />
           </div>
-        </div>
 
-        {/* Output directory — card */}
-        <div className="rounded-xl bg-bg-card border border-border/50 p-4 space-y-3">
-          <div className="flex items-center gap-2.5">
-            <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-accent/10">
-              <FolderOpen className="w-3.5 h-3.5 text-accent" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold text-text-primary leading-tight">
-                Output Directory
-              </p>
-              <p className="text-[10px] text-text-muted/60 leading-tight mt-0.5 truncate" title={outputDir}>
+          {/* Output directory */}
+          <div className="border-t border-border/30 pt-3">
+            <div className="flex items-center gap-2">
+              <FolderOpen className="w-3.5 h-3.5 text-text-muted/40 shrink-0" />
+              <p className="text-[10px] text-text-muted/60 truncate flex-1" title={outputDir}>
                 {outputDir || "Loading…"}
               </p>
-            </div>
-            {isCustomDir && (
+              {isCustomDir && (
+                <button
+                  onClick={handleResetDir}
+                  className="p-1 rounded hover:bg-bg-elevated text-text-muted/40 hover:text-text-primary transition-all cursor-pointer"
+                  title="Reset to default"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                </button>
+              )}
               <button
-                onClick={handleResetDir}
-                className="p-1.5 rounded-lg hover:bg-bg-elevated text-text-muted/40 hover:text-text-primary transition-all cursor-pointer"
-                title="Reset to default"
+                onClick={handleBrowseDir}
+                className="px-2.5 py-1 rounded-md bg-bg-primary border border-border/50 text-[10px] font-medium text-text-secondary hover:text-text-primary hover:bg-bg-elevated transition-all cursor-pointer shrink-0"
               >
-                <RotateCcw className="w-3.5 h-3.5" />
+                Browse…
               </button>
-            )}
+            </div>
           </div>
+
+          {/* Silence trim toggle */}
           <div className="border-t border-border/30 pt-3">
             <button
-              onClick={handleBrowseDir}
-              className="w-full py-2 rounded-lg bg-bg-primary border border-border/50 text-[11px] font-medium text-text-secondary hover:text-text-primary hover:bg-bg-elevated transition-all cursor-pointer"
+              onClick={() => handleSilenceTrim(!silenceTrim)}
+              className="flex items-center justify-between w-full cursor-pointer"
             >
-              Browse…
-            </button>
-          </div>
-        </div>
-
-        {/* Silence trim — card */}
-        <div className="rounded-xl bg-bg-card border border-border/50 p-4">
-          <button
-            onClick={() => handleSilenceTrim(!silenceTrim)}
-            className="flex items-center justify-between w-full group cursor-pointer"
-          >
-            <div className="flex items-center gap-2.5">
-              <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-record/10">
-                <VolumeX className={cn("w-3.5 h-3.5", silenceTrim ? "text-record" : "text-text-muted/40")} />
+              <div className="flex items-center gap-2">
+                <VolumeX className={cn("w-3.5 h-3.5", silenceTrim ? "text-success" : "text-text-muted/40")} />
+                <span className="text-[11px] font-medium text-text-primary">Trim silence</span>
+                <span className="text-[9px] text-text-muted/50">Strip leading & trailing</span>
               </div>
-              <div className="text-left">
-                <p className="text-xs font-semibold text-text-primary leading-tight">
-                  Silence Trim
-                </p>
-                <p className="text-[10px] text-text-muted/60 leading-tight mt-0.5">
-                  Skip leading silence in recordings
-                </p>
-              </div>
-            </div>
-            <div
-              className={cn(
-                "w-8 h-[18px] rounded-full transition-colors relative",
-                silenceTrim ? "bg-success" : "bg-border"
-              )}
-            >
               <div
                 className={cn(
-                  "absolute top-[2px] w-[14px] h-[14px] rounded-full bg-white transition-transform",
-                  silenceTrim ? "translate-x-[16px]" : "translate-x-[2px]"
+                  "w-8 h-[18px] rounded-full transition-colors relative",
+                  silenceTrim ? "bg-success" : "bg-border"
                 )}
-              />
-            </div>
-          </button>
+              >
+                <div
+                  className={cn(
+                    "absolute top-[2px] w-[14px] h-[14px] rounded-full bg-white transition-transform",
+                    silenceTrim ? "translate-x-[16px]" : "translate-x-[2px]"
+                  )}
+                />
+              </div>
+            </button>
+          </div>
         </div>
 
         {/* Recording history — card */}
@@ -297,175 +299,35 @@ export function SettingsPanel({
             <RecordingHistory />
           </div>
         </div>
-
-        {/* Appearance — card */}
-        <div className="rounded-xl bg-bg-card border border-border/50 p-4 space-y-3">
-          <div className="flex items-center gap-2.5">
-            <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-text-muted/10">
-              {theme === "dark" ? (
-                <Moon className="w-3.5 h-3.5 text-text-muted" />
-              ) : (
-                <Sun className="w-3.5 h-3.5 text-text-muted" />
-              )}
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-text-primary leading-tight">
-                Appearance
-              </p>
-              <p className="text-[10px] text-text-muted/60 leading-tight mt-0.5">
-                Theme preference
-              </p>
-            </div>
-          </div>
-          <div className="border-t border-border/30 pt-3">
-            <div className="flex items-center gap-1.5 p-1 rounded-lg bg-bg-primary border border-border/50">
-              <button
-                onClick={() => onThemeChange("dark")}
-                className={cn(
-                  "flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-md text-xs font-medium transition-all cursor-pointer",
-                  theme === "dark"
-                    ? "bg-accent text-white shadow-sm shadow-accent/20"
-                    : "text-text-muted hover:text-text-secondary hover:bg-bg-elevated/50"
-                )}
-              >
-                <Moon className="w-3 h-3" />
-                Dark
-              </button>
-              <button
-                onClick={() => onThemeChange("light")}
-                className={cn(
-                  "flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-md text-xs font-medium transition-all cursor-pointer",
-                  theme === "light"
-                    ? "bg-accent text-white shadow-sm shadow-accent/20"
-                    : "text-text-muted hover:text-text-secondary hover:bg-bg-elevated/50"
-                )}
-              >
-                <Sun className="w-3 h-3" />
-                Light
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Updates — card */}
-        <div className="rounded-xl bg-bg-card border border-border/50 p-4 space-y-3">
-          <div className="flex items-center gap-2.5">
-            <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-success/10">
-              <Download className="w-3.5 h-3.5 text-success" />
-            </div>
-            <div className="flex-1">
-              <p className="text-xs font-semibold text-text-primary leading-tight">
-                Updates
-              </p>
-              <p className="text-[10px] text-text-muted/60 leading-tight mt-0.5">
-                {updater.status === "up-to-date"
-                  ? "You're on the latest version"
-                  : updater.status === "available"
-                    ? `v${updater.version} available`
-                    : updater.status === "downloading"
-                      ? "Downloading update…"
-                      : updater.status === "ready"
-                        ? "Restart to finish updating"
-                        : updater.status === "error"
-                          ? updater.error ?? "Update check failed"
-                          : "Check for new versions"}
-              </p>
-            </div>
-            {updater.status === "up-to-date" && (
-              <Check className="w-4 h-4 text-success" />
-            )}
-            {updater.status === "error" && (
-              <AlertCircle className="w-4 h-4 text-record" />
-            )}
-          </div>
-          <div className="border-t border-border/30 pt-3">
-            {(updater.status === "idle" || updater.status === "up-to-date" || updater.status === "error") && (
-              <button
-                onClick={updater.checkForUpdates}
-                className="w-full py-2 rounded-lg bg-bg-primary border border-border/50 text-[11px] font-medium text-text-secondary hover:text-text-primary hover:bg-bg-elevated transition-all cursor-pointer"
-              >
-                Check for Updates
-              </button>
-            )}
-            {updater.status === "checking" && (
-              <div className="flex items-center justify-center gap-2 py-2">
-                <Loader2 className="w-3.5 h-3.5 text-accent animate-spin" />
-                <span className="text-[11px] text-text-muted">Checking…</span>
-              </div>
-            )}
-            {updater.status === "available" && (
-              <button
-                onClick={updater.installUpdate}
-                className="w-full py-2 rounded-lg bg-accent text-white text-[11px] font-medium hover:bg-accent-hover transition-all cursor-pointer shadow-sm shadow-accent/20"
-              >
-                Download & Install v{updater.version}
-              </button>
-            )}
-            {updater.status === "downloading" && (
-              <div className="space-y-2">
-                <div className="w-full h-1.5 rounded-full bg-bg-primary overflow-hidden">
-                  <div
-                    className="h-full bg-accent rounded-full transition-all duration-300"
-                    style={{ width: `${Math.min(100, (updater.progress / 1024 / 1024) * 10)}%` }}
-                  />
-                </div>
-                <p className="text-[10px] text-text-muted text-center">
-                  {(updater.progress / 1024 / 1024).toFixed(1)} MB downloaded
-                </p>
-              </div>
-            )}
-            {updater.status === "ready" && (
-              <div className="flex items-center justify-center gap-2 py-2">
-                <Check className="w-3.5 h-3.5 text-success" />
-                <span className="text-[11px] text-success font-medium">Restarting…</span>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Keyboard shortcuts — card */}
-        <div className="rounded-xl bg-bg-card border border-border/50 p-4 space-y-3">
-          <div className="flex items-center gap-2.5">
-            <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-accent/10">
-              <Keyboard className="w-3.5 h-3.5 text-accent" />
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-text-primary leading-tight">
-                Keyboard Shortcuts
-              </p>
-            </div>
-          </div>
-          <div className="border-t border-border/30 pt-3 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] text-text-muted">Start recording</span>
-              <kbd className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-bg-primary border border-border/50 text-text-muted/70">
-                Ctrl+R
-              </kbd>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] text-text-muted">Stop recording</span>
-              <kbd className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-bg-primary border border-border/50 text-text-muted/70">
-                Ctrl+S
-              </kbd>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] text-text-muted">Stop recording</span>
-              <kbd className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-bg-primary border border-border/50 text-text-muted/70">
-                Esc
-              </kbd>
-            </div>
-          </div>
-        </div>
       </div>
 
-      {/* Footer */}
-      <div className="px-5 py-3 border-t border-border/40 flex items-center justify-between">
-        <p className="text-[10px] text-text-muted/30 font-medium tracking-wide">
-          DiscRec v1.2.0
-        </p>
-        <p className="text-[10px] text-text-muted/20">
-          github.com/jmpijll/discrec
-        </p>
+      {/* Footer — version, update, shortcuts */}
+      <div className="px-5 py-2.5 border-t border-border/40 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 min-w-0">
+          <p className="text-[10px] text-text-muted/30 font-medium tracking-wide shrink-0">
+            DiscRec v1.2.0
+          </p>
+          <span className="text-text-muted/15">·</span>
+          <button
+            onClick={
+              updater.status === "available" ? updater.installUpdate :
+              (updater.status === "idle" || updater.status === "up-to-date" || updater.status === "error")
+                ? updater.checkForUpdates : undefined
+            }
+            disabled={updater.status === "checking" || updater.status === "downloading" || updater.status === "ready"}
+            className="text-[10px] text-text-muted/30 hover:text-text-muted/60 transition-colors cursor-pointer disabled:cursor-default flex items-center gap-1"
+          >
+            {updater.status === "checking" && <Loader2 className="w-2.5 h-2.5 animate-spin" />}
+            {updater.status === "up-to-date" && <Check className="w-2.5 h-2.5 text-success/50" />}
+            {updateLabel}
+          </button>
+        </div>
+        <div className="flex items-center gap-2 text-[9px] text-text-muted/20 shrink-0">
+          <kbd className="font-mono px-1 py-0.5 rounded bg-bg-primary/50 border border-border/30">Ctrl+R</kbd>
+          <span>rec</span>
+          <kbd className="font-mono px-1 py-0.5 rounded bg-bg-primary/50 border border-border/30">Esc</kbd>
+          <span>stop</span>
+        </div>
       </div>
     </div>
   );

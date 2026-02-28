@@ -38,21 +38,77 @@ pub fn create_encoder(
     channels: u16,
     sample_rate: u32,
     format: AudioFormat,
+    silence_trim: bool,
 ) -> Result<Box<dyn AudioEncoder>> {
     ensure_parent_dir(path)?;
-    match format {
-        AudioFormat::Wav => {
-            let writer = WavWriter::new(path, channels, sample_rate)?;
-            Ok(Box::new(writer))
+    let inner: Box<dyn AudioEncoder> = match format {
+        AudioFormat::Wav => Box::new(WavWriter::new(path, channels, sample_rate)?),
+        AudioFormat::Flac => Box::new(FlacWriter::new(path, channels, sample_rate)?),
+        AudioFormat::Mp3 => Box::new(Mp3Writer::new(path, channels, sample_rate)?),
+    };
+    if silence_trim {
+        Ok(Box::new(SilenceTrimEncoder::new(inner)))
+    } else {
+        Ok(inner)
+    }
+}
+
+// --- Silence trim wrapper (leading + trailing) ---
+
+const SILENCE_THRESHOLD: f32 = 0.005;
+
+struct SilenceTrimEncoder {
+    inner: Box<dyn AudioEncoder>,
+    gate_open: bool,
+    trailing_buf: Vec<f32>,
+}
+
+impl SilenceTrimEncoder {
+    fn new(inner: Box<dyn AudioEncoder>) -> Self {
+        Self {
+            inner,
+            gate_open: false,
+            trailing_buf: Vec::new(),
         }
-        AudioFormat::Flac => {
-            let writer = FlacWriter::new(path, channels, sample_rate)?;
-            Ok(Box::new(writer))
+    }
+}
+
+impl AudioEncoder for SilenceTrimEncoder {
+    fn write_sample(&mut self, sample: f32) -> Result<()> {
+        let is_silent = sample.abs() <= SILENCE_THRESHOLD;
+
+        if !self.gate_open {
+            // Leading silence — skip
+            if !is_silent {
+                self.gate_open = true;
+                log::info!("Silence gate opened — audio detected");
+                self.inner.write_sample(sample)?;
+            }
+        } else if is_silent {
+            // Might be trailing silence — buffer it
+            self.trailing_buf.push(sample);
+        } else {
+            // Non-silent after a silent stretch — flush buffer then write
+            for &s in &self.trailing_buf {
+                self.inner.write_sample(s)?;
+            }
+            self.trailing_buf.clear();
+            self.inner.write_sample(sample)?;
         }
-        AudioFormat::Mp3 => {
-            let writer = Mp3Writer::new(path, channels, sample_rate)?;
-            Ok(Box::new(writer))
+        Ok(())
+    }
+
+    fn path(&self) -> &str {
+        self.inner.path()
+    }
+
+    fn finalize(self: Box<Self>) -> Result<()> {
+        // Discard trailing_buf (it's trailing silence)
+        let trimmed = self.trailing_buf.len();
+        if trimmed > 0 {
+            log::info!("Trimmed {} trailing silent samples", trimmed);
         }
+        self.inner.finalize()
     }
 }
 

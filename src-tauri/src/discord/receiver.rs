@@ -86,7 +86,7 @@ impl ReceiverState {
             .to_string_lossy()
             .to_string();
 
-        let encoder = create_encoder(&path, self.channels, self.sample_rate, self.format)?;
+        let encoder = create_encoder(&path, self.channels, self.sample_rate, self.format, false)?;
         log::info!("Created encoder for speaker {} -> {}", ssrc, path);
         encoders.insert(ssrc, encoder);
         Ok(())
