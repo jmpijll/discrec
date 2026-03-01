@@ -112,6 +112,7 @@ pnpm tauri:build      # Full build (tsc, vite, cargo build --release)
 
 - **CI flow** (`.github/workflows/ci.yml`): On push/PR to `main` → lint frontend → check Rust (fmt, clippy, test on 3 platforms)
 - **Release flow** (`.github/workflows/release.yml`): On tag `v*` → build all platforms → sign with TAURI_SIGNING_PRIVATE_KEY → upload to GitHub releases
+- **⚠️ CRITICAL: Check CI/CD results after every push** — Visit [GitHub Actions](../../actions) tab after pushing to verify all workflows pass (lint, fmt, clippy, cargo test on Ubuntu/Windows/macOS). Do NOT merge failing builds. If tests fail locally, fix before pushing. Failed builds block releases and waste CI minutes.
 - **Version bumping:** Update `version` in `tauri.conf.json`, `Cargo.toml`, `package.json`, and SettingsPanel footer simultaneously
 
 ## Project Conventions
@@ -226,10 +227,12 @@ Before coding, ask:
 1. Update ROADMAP.md with feature details + expected v{X.Y.Z}
 2. Create a branch: `git checkout -b feat/my-feature`
 3. Implement + test locally across platforms
-4. Commit with conventional message: `feat: add feature name`
-5. Push + open PR with description of testing done
-6. Update version in all 4 files + ROADMAP when merging to main
-7. Create GitHub release when ready: `gh release create v{VERSION}`
+4. **Run full lint & build locally:** `pnpm lint && cargo fmt --manifest-path src-tauri/Cargo.toml --all && cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings && cargo test --manifest-path src-tauri/Cargo.toml` — DO NOT push if these fail
+5. Commit with conventional message: `feat: add feature name`
+6. **Push + immediately check** [GitHub Actions](../../actions) tab to verify all CI workflows pass (lint, fmt, clippy, cargo test on 3 platforms). Do NOT consider work done until all green checks appear
+7. Open PR with description of testing done
+8. Update version in all 4 files + ROADMAP when merging to main
+9. Create GitHub release when ready: `gh release create v{VERSION}`
 
 ## Debugging
 
