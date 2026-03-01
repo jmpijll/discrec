@@ -119,3 +119,41 @@
 - `TrayIconBuilder::icon()` must be called explicitly; without it the tray entry exists but renders invisible on Windows
 - Extracting reusable `Toggle`, `SettingRow`, `Section` components keeps settings panels maintainable as features grow
 - A consistent sizing system (13px body text, 11px labels, rounded-xl containers, 3-4px gaps) creates visual calm without sacrificing density
+## v2.1.0 — Quality & Performance
+
+- [ ] Window position & size persistence (remember where user resized the app)
+- [ ] Configurable window size (currently fixed 680×400 — some users may want smaller/larger)
+- [ ] Recording pause/resume (currently only start/stop; pause is useful for live events)
+- [ ] Batch delete in recording history (select multiple + delete all)
+- [ ] Search/filter in recording history (by filename or date range)
+- [ ] Import recordings from folder (index external files without moving them)
+- [ ] Component-level test suite (vitest + @testing-library, focus on core UI logic)
+
+### Benefits
+- Better UX for laptops with smaller screens (1366×768, Chromebooks)
+- Cleaner recording management for heavy users (100+ recordings)
+- Pause/resume is critical for meetings with long quiet periods — saves disk space
+
+## v2.2.0 — Integration
+
+- [ ] Cloud upload helpers (Cloudinary, AWS S3 one-click; templates only, no keys stored)
+- [ ] Discord webhook integration (post recording to a private channel automatically)
+- [ ] Filename templating (patterns like `${GUILD}-${CHANNEL}-${DATE}.${EXT}`)
+- [ ] Automatic file compression on save (background LAME quality reduction post-recording)
+
+## Future — Refactoring & Architecture
+
+### Module extraction
+- [ ] Audio capture logic into separate library (`discrec-audio`)
+- [ ] Discord bot as optional, de-coupled module (users who only need system audio don't load it)
+- [ ] Settings into schema-driven layer with migration support (prepare for config format changes)
+
+### Testing & CI
+- [ ] E2E test framework (headless Tauri app testing)
+- [ ] Cross-platform screenshot testing (verify UI doesn't drift)
+- [ ] Audio quality validation (automated checks for distortion, clipping in test recordings)
+
+### Developer experience
+- [ ] Component Storybook (showcase UI in isolation for designers/contributors)
+- [ ] Architecture documentation (audio pipeline, Discord integration, settings flow)
+- [ ] Contributing guide expansion (code style, git workflow, how to add a new setting)

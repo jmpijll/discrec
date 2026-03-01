@@ -15,6 +15,8 @@ DiscRec captures Discord audio with a single click. No configuration, no bloat �
 
 Built with [Tauri v2](https://tauri.app) (Rust) and React. Cross-platform: Windows, macOS, and Linux.
 
+**v2.0.0:** Modernized UI with refined typography, rounded corners, improved spacing, fixed tray icon on Windows, and corrected updater ACL permissions.
+
 ## Features
 
 - **One-click recording** — press record to capture Discord audio instantly
@@ -29,7 +31,8 @@ Built with [Tauri v2](https://tauri.app) (Rust) and React. Cross-platform: Windo
 - **Dark / light theme** — switch in settings, persisted across sessions
 - **Live audio meter** — real-time level visualization with smooth decay and peak hold
 - **Recording history** — browse, open folder, or delete past recordings from settings
-- **System tray** — record, stop, and quit from the tray icon
+- **System tray** — record, stop, and quit from the tray icon (with visible icon on Windows)
+- **Minimalist modern design** — clean layout with spacious components and visual hierarchy
 
 ## Install
 
