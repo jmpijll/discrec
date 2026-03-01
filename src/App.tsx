@@ -179,14 +179,14 @@ function App() {
           onReset={handleReset}
         />
       ) : (
-        <div className="flex flex-col items-center gap-2">
+        <div className="flex flex-col items-center gap-3">
           {/* Branding */}
-          <div className="flex items-center gap-2 mb-2">
+          <div className="flex items-center gap-2.5 mb-1">
             <Disc3
               className={`w-5 h-5 text-accent ${isRecording ? "animate-spin" : ""}`}
               style={{ animationDuration: "3s" }}
             />
-            <h1 className="text-base font-bold tracking-tight text-text-primary">
+            <h1 className="text-[15px] font-semibold tracking-tight text-text-primary">
               DiscRec
             </h1>
           </div>
@@ -194,8 +194,8 @@ function App() {
           {/* Audio meter */}
           <AudioMeter level={peakLevel} isActive={isRecording} />
 
-          {/* Extra spacing so pulsation glow doesn't overlap meter */}
-          <div className="h-4" />
+          {/* Spacer for glow clearance */}
+          <div className="h-3" />
 
           {/* Record button */}
           <RecordButton
@@ -205,11 +205,11 @@ function App() {
           />
 
           {/* Status text */}
-          <div className="h-8 flex items-center">
+          <div className="h-10 flex items-center">
             {isRecording ? (
               <StatusBar isRecording={true} duration={duration} />
             ) : (
-              <p className="text-xs text-text-muted">
+              <p className="text-[13px] text-text-muted/70">
                 {isDiscordMode
                   ? canRecord
                     ? "Press to record Discord"
@@ -223,19 +223,19 @@ function App() {
 
       {/* Error Display */}
       {error && (
-        <div className="absolute bottom-12 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-2 rounded-lg bg-record/10 border border-record/20 animate-fade-in max-w-[400px]">
+        <div className="absolute bottom-14 left-1/2 -translate-x-1/2 flex items-center gap-2.5 px-5 py-2.5 rounded-xl bg-record/8 border border-record/15 animate-fade-in max-w-[420px] backdrop-blur-sm">
           <AlertCircle className="w-4 h-4 text-record shrink-0" />
-          <p className="text-xs text-record">{error}</p>
+          <p className="text-[13px] text-record">{error}</p>
         </div>
       )}
 
       {/* Settings gear — bottom right */}
       <button
         onClick={() => setShowSettings(true)}
-        className="absolute bottom-3 right-3 p-2 rounded-lg text-text-muted/40 hover:text-text-muted hover:bg-bg-elevated transition-colors cursor-pointer"
+        className="absolute bottom-4 right-4 p-2.5 rounded-xl text-text-muted/30 hover:text-text-muted/70 hover:bg-bg-elevated/60 transition-all cursor-pointer"
         title="Settings"
       >
-        <Settings className="w-4 h-4" />
+        <Settings className="w-[18px] h-[18px]" />
       </button>
     </div>
   );

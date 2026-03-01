@@ -93,31 +93,31 @@ export function RecordingHistory() {
   }
 
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-2">
       {/* Header with refresh */}
       <div className="flex items-center justify-between mb-1">
-        <p className="text-[10px] text-text-muted/50">
+        <p className="text-[11px] text-text-muted/50">
           {recordings.length} recording{recordings.length !== 1 ? "s" : ""}
         </p>
         <button
           onClick={refresh}
-          className="p-1 rounded text-text-muted/40 hover:text-text-muted transition-colors cursor-pointer"
+          className="p-1.5 rounded-lg text-text-muted/40 hover:text-text-muted transition-colors cursor-pointer"
         >
-          <RefreshCw className="w-3 h-3" />
+          <RefreshCw className="w-3.5 h-3.5" />
         </button>
       </div>
 
       {/* Recording list */}
-      <div className="flex flex-col gap-1 max-h-[200px] overflow-y-auto pr-1">
+      <div className="flex flex-col gap-1.5 max-h-[200px] overflow-y-auto pr-1">
         {recordings.map((rec) => (
           <div
             key={rec.path}
-            className="group flex items-center gap-2.5 px-2.5 py-2 rounded-lg bg-bg-primary/60 border border-border/30 hover:border-border/60 transition-colors"
+            className="group flex items-center gap-3 px-3 py-2.5 rounded-xl bg-bg-primary/60 border border-border/30 hover:border-border/60 transition-colors"
           >
             {/* Format badge */}
             <span
               className={cn(
-                "shrink-0 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded",
+                "shrink-0 text-[9px] font-bold uppercase px-2 py-0.5 rounded-md",
                 formatBadgeColor(rec.format)
               )}
             >
@@ -126,29 +126,29 @@ export function RecordingHistory() {
 
             {/* File info */}
             <div className="flex-1 min-w-0">
-              <p className="text-[11px] text-text-primary truncate leading-tight">
+              <p className="text-[12px] text-text-primary truncate leading-snug">
                 {rec.filename}
               </p>
-              <p className="text-[9px] text-text-muted/50 leading-tight mt-0.5">
+              <p className="text-[10px] text-text-muted/50 leading-snug mt-0.5">
                 {formatSize(rec.size)} · {formatDate(rec.modified)}
               </p>
             </div>
 
             {/* Actions */}
-            <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
               <button
                 onClick={() => handleOpenFolder(rec.path)}
-                className="p-1 rounded text-text-muted/40 hover:text-text-primary transition-colors cursor-pointer"
+                className="p-1.5 rounded-lg text-text-muted/40 hover:text-text-primary transition-colors cursor-pointer"
                 title="Open folder"
               >
-                <FolderOpen className="w-3 h-3" />
+                <FolderOpen className="w-3.5 h-3.5" />
               </button>
               <button
                 onClick={() => handleDelete(rec.path)}
-                className="p-1 rounded text-text-muted/40 hover:text-record transition-colors cursor-pointer"
+                className="p-1.5 rounded-lg text-text-muted/40 hover:text-record transition-colors cursor-pointer"
                 title="Delete"
               >
-                <Trash2 className="w-3 h-3" />
+                <Trash2 className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>

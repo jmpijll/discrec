@@ -72,7 +72,7 @@ export function AudioMeter({ level, isActive }: AudioMeterProps) {
   const activeBars = Math.round(smoothLevel * BARS);
 
   return (
-    <div className="flex items-end justify-center gap-[2.5px] h-20 px-4">
+    <div className="flex items-end justify-center gap-[3px] h-20 px-4">
       {Array.from({ length: BARS }, (_, i) => {
         const isLit = isActive && i < activeBars;
         const isPeak = isActive && i === peakBar - 1 && peakBar > 0;
@@ -91,7 +91,7 @@ export function AudioMeter({ level, isActive }: AudioMeterProps) {
         return (
           <div
             key={i}
-            className={cn("w-[5px] rounded-full transition-colors duration-75", color)}
+            className={cn("w-[4.5px] rounded-full transition-colors duration-75", color)}
             style={{
               height: isLit
                 ? `${Math.max(24, (i / BARS) * 100)}%`

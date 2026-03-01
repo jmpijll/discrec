@@ -13,7 +13,7 @@ export function RecordButton({ isRecording, onClick, disabled }: RecordButtonPro
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        "relative w-28 h-28 rounded-full flex items-center justify-center",
+        "relative w-24 h-24 rounded-full flex items-center justify-center",
         "transition-all duration-300 cursor-pointer",
         "focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary",
         disabled
@@ -28,16 +28,16 @@ export function RecordButton({ isRecording, onClick, disabled }: RecordButtonPro
         className={cn(
           "absolute inset-0 rounded-full transition-opacity duration-500",
           isRecording
-            ? "opacity-100 shadow-[0_0_40px_var(--color-record-glow)]"
+            ? "opacity-100 shadow-[0_0_35px_var(--color-record-glow)]"
             : "opacity-0"
         )}
       />
 
       {/* Icon */}
       {isRecording ? (
-        <Square className="w-10 h-10 text-white relative z-10" fill="white" />
+        <Square className="w-8 h-8 text-white relative z-10" fill="white" />
       ) : (
-        <Mic className="w-10 h-10 text-white relative z-10" />
+        <Mic className="w-9 h-9 text-white relative z-10" />
       )}
     </button>
   );

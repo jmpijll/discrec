@@ -104,7 +104,18 @@
 - Key capture UI: listen for next `keydown`, build combo string from modifier flags + key, save via Tauri command. Escape cancels capture
 - Discord voice channels have built-in text chat (since 2022) — `channel_id.say()` works directly without finding a separate text channel
 
-## v2.0.0 — Intelligence
+## v2.0.0 — UX & Layout
 
-- [ ] Transcription via Whisper (local or API — meeting notes, podcast recap)
-- [ ] Recording summary / highlights (auto-detect key moments)
+- [x] Fix system tray icon invisible on Windows (missing `.icon()` on `TrayIconBuilder`)
+- [x] Fix updater "blocked by ACL" — added `updater:default` + `process:allow-restart` to capabilities
+- [x] Settings panel redesign — section-based layout with `Toggle`/`SettingRow`/`Section` components, proper spacing
+- [x] Improved overall layout and visual hierarchy (larger text, rounded-xl corners, consistent spacing)
+- [x] Minimalist modern styling pass across all views (CompletedView, FormatSelector, DiscordPanel, RecordingHistory, AudioMeter, StatusBar, RecordButton)
+- [x] Custom scrollbar styling (thin, theme-aware)
+- [x] Version bump to 2.0.0
+
+### Lessons learned
+- Tauri v2 ACL: `updater:default` and `process:allow-restart` must be in `capabilities/default.json` — plugins registered in Rust won’t work without frontend permissions
+- `TrayIconBuilder::icon()` must be called explicitly; without it the tray entry exists but renders invisible on Windows
+- Extracting reusable `Toggle`, `SettingRow`, `Section` components keeps settings panels maintainable as features grow
+- A consistent sizing system (13px body text, 11px labels, rounded-xl containers, 3-4px gaps) creates visual calm without sacrificing density

@@ -1,6 +1,6 @@
 [package]
 name = "discrec"
-version = "1.3.0"
+version = "2.0.0"
 description = "Beautiful, minimal Discord audio recorder"
 authors = ["jmpijll"]
 license = "MIT"

@@ -71,3 +71,21 @@ body {
 .animate-pulse-record {
   animation: pulse-record 2s ease-in-out infinite;
 }
+
+/* Smooth scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
+}
