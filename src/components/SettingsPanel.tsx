@@ -410,6 +410,8 @@ export function SettingsPanel({
           <kbd className="font-mono px-1.5 py-0.5 rounded-md bg-bg-primary/50 border border-border/30">{recordKey}</kbd>
           <span>rec</span>
           <kbd className="font-mono px-1.5 py-0.5 rounded-md bg-bg-primary/50 border border-border/30">Esc</kbd>
+        </div>
+      </div>
     </div>
   );
 }
