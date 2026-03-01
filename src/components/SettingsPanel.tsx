@@ -389,7 +389,7 @@ export function SettingsPanel({
       <div className="px-6 py-3 border-t border-border/30 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
           <p className="text-[11px] text-text-muted/30 font-medium tracking-wide">
-            DiscRec v2.0.0
+            DiscRec v2.0.1
           </p>
           <span className="text-text-muted/15">·</span>
           <button
